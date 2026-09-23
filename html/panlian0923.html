@@ -52,7 +52,7 @@
   if (P.parentNode) P.parentNode.removeChild(P);
   if (!(ar > 70 && ar < 110)) root.className += " no-aspect-ratio";
   if (W.fongmiBridge || W.fm || W.fongmi) root.className += " fm-native";
-  try { var _t0 = localStorage.getItem("pl_theme"); if (_t0 && _t0 !== "default") { root.setAttribute("data-theme", _t0); } } catch (e0) {}
+  try { var _t0 = localStorage.getItem("pl_theme"); if (_t0 && _t0 !== "default" && _t0 !== "appletv") { root.setAttribute("data-theme", _t0); } } catch (e0) {}
 })();
 </script>
 
@@ -1674,6 +1674,15 @@ body.detail-active { background: var(--ed-bg, var(--sheet-bg)); transition: back
    可选 catch 绑定 / 私有字段（语法错误无法 try/catch，一处即白屏）。
    ============================================================ */
 var $ = function (id) { return document.getElementById(id); };
+window._diag = function (base) {
+  try {
+    var s = base + " [sdk=" + (state.sdkReady ? "Y" : "N") + " fm=" + (window.fm ? "Y" : "N") + " ck=" + (config.cookie ? "Y(" + config.cookie.length + ")" : "N") + " ucm=" + (state.useCookieManager ? "Y" : "N") + " req=" + (window._fmReqId || "?") + "]";
+    if (window._apiErr) s += " err=" + window._apiErr;
+    else if (window._apiLast) s += " ok=" + window._apiLast;
+    return el("div", "mh-row-empty", s);
+  } catch (e) { return el("div", "mh-row-empty", base); }
+};
+
 var root = document.documentElement;
 
 var DEFAULT_BASE = "https://pinglian.lol";
@@ -2096,7 +2105,7 @@ var state = {
   expandedActorId: 0, suggestTimer: 0, suggestToken: 0,
   loginPromise: null, useCookieManager: false, loggedInOnce: false, reloginTried: false,
   bestResource: null, qFilter: null, qFilterManual: false, qGroups: [],
-  focusScope: "home", homeReturn: null, viewReturn: null, theme: "default",
+  focusScope: "home", homeReturn: null, viewReturn: null, theme: "appletv",
   homeCatCache: {}, homeCatMore: {}, homeHeroLoaded: false,
   searchPanelOpen: false, scrollLockY: 0, stackDepth: 0, expectedDepth: null,
   zn4kColCache: {}, zn4kCol: null,
@@ -2259,8 +2268,8 @@ function clearTextMemo() { _txtMemo = {}; }
 var THEME_LIST = ["default", "ember", "aurora", "appletv"];
 var THEME_NAMES = { "default": "极夜蓝", "ember": "日落珊瑚", "aurora": "极光靛蓝", "appletv": "苹果白" };
 function applyTheme(t) {
-  if (THEME_LIST.indexOf(t) === -1) t = "default";
-  if (t === "default") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", t);
+  if (THEME_LIST.indexOf(t) === -1) t = "appletv";
+  if (t === "default") t = "appletv"; root.setAttribute("data-theme", t);
   state.theme = t;
 }
 function cycleTheme() {
@@ -2274,7 +2283,7 @@ function cycleTheme() {
 function loadTheme() {
   var local = "";
   try { local = localStorage.getItem("pl_theme") || ""; } catch (e) {}
-  return storeGet("theme").then(function (t) { applyTheme(t || local || "default"); }, function () { applyTheme(local || "default"); });
+  return storeGet("theme").then(function (t) { if (t === "default") t = ""; applyTheme(t || local || "appletv"); }, function () { applyTheme(local === "default" ? "" : local || "appletv"); });
 }
 
 /* ---------- 网络：带内置 Cookie；API 需伪装成 AJAX（否则返回“非法请求”） ---------- */
@@ -2293,6 +2302,57 @@ function fetchTimeout(url, opts) {
     throw err;
   });
 }
+function hdrObj(h) {
+  var o = {};
+  try {
+    if (h && h.forEach) h.forEach(function (v, k) { o[k] = v; });
+    else if (h) for (var k in h) o[k] = h[k];
+  } catch (e) {}
+  return o;
+}
+window._plSeq = 0;
+window._plCbs = {};
+/* hook 壳的 fongmiNative：我们的 id 我们消费，壳的原样转发 */
+window._plHookTimer = setInterval(function () {
+  var fn = window.fongmiNative;
+  if (fn && fn.resolve && !fn.__plHooked) {
+    var ores = fn.resolve, orej = fn.reject;
+    fn.resolve = function (id, data) {
+      if (window._plCbs[id]) {
+        var cb = window._plCbs[id]; delete window._plCbs[id];
+        try {
+          if (data && data.__fmResultId) {
+            var rid = data.__fmResultId;
+            var len = fongmiBridge.resultLength(rid);
+            var text = "";
+            for (var off = 0; off < len; off += 60000) text += fongmiBridge.resultChunk(rid, off);
+            fongmiBridge.clearResult(rid);
+            data = JSON.parse(text);
+          }
+        } catch (eH) {}
+        if (data && typeof data.body === "string") { try { data.body = JSON.parse(data.body); } catch (e3) {} }
+        cb.resolve(data); return;
+      }
+      return ores.apply(fn, arguments);
+    };
+    fn.reject = function (id, err) {
+      if (window._plCbs[id]) { var cb = window._plCbs[id]; delete window._plCbs[id]; cb.reject(new Error(err || "bridge error")); return; }
+      return orej.apply(fn, arguments);
+    };
+    fn.__plHooked = true;
+    clearInterval(window._plHookTimer);
+  }
+}, 50);
+window._plReq = function (method, payload) {
+  return new Promise(function (resolve, reject) {
+    if (!window.fongmiBridge) { reject(new Error("no fongmiBridge")); return; }
+    var id = "pl_" + Date.now() + "_" + (++window._plSeq);
+    window._plCbs[id] = { resolve: resolve, reject: reject };
+    fongmiBridge.invoke(id, method, JSON.stringify(payload || {}));
+    setTimeout(function () { if (window._plCbs[id]) { delete window._plCbs[id]; reject(new Error("bridge timeout")); } }, 15000);
+  });
+};
+
 function authCookie() { if (state.useCookieManager) return ""; return config.cookie || AUTH_COOKIE; }
 function pageHeaders() { var h = { "User-Agent": BROWSER_UA }; var ck = authCookie(); if (ck) h["Cookie"] = ck; return h; }
 function apiHeaders(refId) {
@@ -2328,37 +2388,24 @@ function unwrapApi(body, httpOk) {
   return body;
 }
 function apiGet(url, refId) {
-  if (state.sdkReady && window.fm && fm.req) {
-    return fm.req(url, { method: "GET", responseType: "json", timeout: 20, headers: apiHeaders(refId), credentials: "include" })
-      .then(function (r) {
-        var body = r.body;
-        if (!r.ok && !(body && typeof body === "object")) throw new Error("HTTP " + r.status);
-        return unwrapApi(body, r.ok);
-      });
-  }
-  return fetchTimeout(url, { credentials: "include", headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json" } }).then(function (r) {
-    return r.json().then(function (body) {
-      if (!r.ok && !(body && typeof body === "object")) throw new Error("HTTP " + r.status);
-      return unwrapApi(body, r.ok);
-    });
+  window._apiPath = "pl";
+  return window._plReq("net.request", { method: "GET", responseType: "json", timeout: 20, headers: apiHeaders(refId), credentials: "include", url: url }).then(function (r) {
+    window._apiLast = "pl " + (r.status || "?") + " " + String(url).slice(0, 60);
+    if (!r.ok && !(r.body && typeof r.body === "object")) throw new Error("HTTP " + r.status);
+    return unwrapApi(r.body, r.ok);
+  }, function (e) {
+    window._apiErr = "pl|" + String(e && e.message || e);
+    throw e;
   });
 }
 function apiPost(url, bodyObj, refId) {
-  var body = JSON.stringify(bodyObj);
-  if (state.sdkReady && window.fm && fm.req) {
-    var h = apiHeaders(refId); h["Content-Type"] = "application/json";
-    return fm.req(url, { method: "POST", responseType: "json", timeout: 20, headers: h, body: body, credentials: "include" })
-      .then(function (r) {
-        var b = r.body;
-        if (!r.ok && !(b && typeof b === "object")) throw new Error("HTTP " + r.status);
-        return unwrapApi(b, r.ok);
-      });
-  }
-  return fetchTimeout(url, { method: "POST", credentials: "include", headers: { "X-Requested-With": "XMLHttpRequest", "Content-Type": "application/json", "Accept": "application/json" }, body: body }).then(function (r) {
-    return r.json().then(function (b) {
-      if (!r.ok && !(b && typeof b === "object")) throw new Error("HTTP " + r.status);
-      return unwrapApi(b, r.ok);
-    });
+  var h = apiHeaders(refId); h["Content-Type"] = "application/json";
+  return window._plReq("net.request", { method: "POST", responseType: "json", timeout: 20, headers: h, body: JSON.stringify(bodyObj), credentials: "include", url: url }).then(function (r) {
+    if (!r.ok && !(r.body && typeof r.body === "object")) throw new Error("HTTP " + r.status);
+    return unwrapApi(r.body, r.ok);
+  }, function (e) {
+    window._apiErr = "pl|" + String(e && e.message || e);
+    throw e;
   });
 }
 /* 图片：盘链源站图片用 no-referrer 防盗链，绝不能带 Referer */
@@ -2382,14 +2429,10 @@ function postForm(url, body) {
     "Referer": origin + "/login", "Origin": origin
   };
   var ck = authCookie(); if (ck) headers["Cookie"] = ck;
-  if (state.sdkReady && window.fm && fm.req) {
-    return fm.req(url, { method: "POST", responseType: "json", timeout: 20, headers: headers, body: body, credentials: "include" })
-      .then(function (r) {
-        /* 业务失败常仍是 HTTP 200 + {success:false}；仅在无 body 时才按状态码抛 */
-        if (!r.ok && !(r.body && typeof r.body === "object")) throw new Error("HTTP " + r.status);
-        return r;
-      });
-  }
+  return window._plReq("net.request", { method: "POST", responseType: "json", timeout: 20, headers: headers, body: body, credentials: "include", url: url }).then(function (r) {
+    if (!r.ok && !(r.body && typeof r.body === "object")) throw new Error("HTTP " + r.status);
+    return r;
+  });
   return fetchTimeout(url, {
     method: "POST", credentials: "include",
     headers: {
@@ -2417,6 +2460,7 @@ function mergeCookie(oldCk, setCk) {
   return Object.keys(jar).map(function (k) { return k + "=" + jar[k]; }).join("; ");
 }
 function readSetCookie(res) {
+  if (res && res.setCookie) return res.setCookie; /* jar bridge 透传字段（v203+） */
   var h = res && res.headers; if (!h) return "";
   return h["set-cookie"] || h["Set-Cookie"] || h["setCookie"] || "";
 }
@@ -2836,7 +2880,7 @@ function renderZn4kTop250(box) {
       if (!members.length) { if (!hasCache) shell.row.replaceChildren(el("div", "mh-row-empty", "暂无数据")); return; }
       state.zn4kColCache[c.slug] = members; saveHomeDisk();
       fillRow(shell.row, members.slice(0, 12), function (it) { openDetail(it); });
-    }, function () { if (!hasCache) shell.row.replaceChildren(el("div", "mh-row-empty", "加载失败")); });
+    }, function () { if (!hasCache) shell.row.replaceChildren(window._diag("加载失败")); });
   };
   if (hasCache) { if (homeCacheStale()) homePrefetch(load); return; }   // 有缓存：先秒显，旧了才后台刷新
   rowLoad(shell.section, load);
@@ -2898,7 +2942,7 @@ function openZn4kCollection(slug, name, paged) {
     if (token !== state.reqToken) return;
     $("browseLoading").style.display = "none";
     $("browseSub").textContent = "";
-    $("grid").replaceChildren(el("div", "mh-row-empty", "加载失败，返回重试"));
+    $("grid").replaceChildren(window._diag("加载失败，返回重试"));
   });
 }
 function zn4kShowCollection(members, token) {
@@ -3262,7 +3306,7 @@ function renderShRow(box) {
       if (!list.length) { if (!hasCache) shell.row.replaceChildren(el("div", "mh-row-empty", "暂无数据")); return; }
       state.shCache["1"] = list; saveHomeDisk();
       fillRow(shell.row, list.slice(0, 12), function (it) { openDetail(it); });
-    }, function () { if (!hasCache) shell.row.replaceChildren(el("div", "mh-row-empty", "加载失败")); });
+    }, function () { if (!hasCache) shell.row.replaceChildren(window._diag("加载失败")); });
   };
   if (hasCache) { if (homeCacheStale()) homePrefetch(load); return; }
   rowLoad(shell.section, load);
@@ -3317,7 +3361,7 @@ function shLoadCat(reset) {
     state.loading = false;
     if (token !== state.reqToken) return;
     $("browseLoading").style.display = "none"; state.noMore = true;
-    if (!state.source.length) $("grid").replaceChildren(el("div", "mh-row-empty", "加载失败，返回重试"));
+    if (!state.source.length) $("grid").replaceChildren(window._diag("加载失败，返回重试"));
   });
 }
 function shPaintCat(list, token, page) {
@@ -3859,7 +3903,7 @@ function renderBbjHomeRow(box) {
       if (!(list && list.length)) { if (!hasCache) shell.row.replaceChildren(el("div", "mh-row-empty", "暂无数据")); return; }
       fillRow(shell.row, list.slice(0, 12), function (it) { openDetail(it); });
     }, function () {
-      if (!hasCache) shell.row.replaceChildren(el("div", "mh-row-empty", "加载失败"));
+      if (!hasCache) shell.row.replaceChildren(window._diag("加载失败"));
     });
   }
   if (typeof rowLoad === "function") rowLoad(shell.section, load);
@@ -3881,7 +3925,7 @@ function renderJrankHomeRow(box) {
       }
       fillRow(shell.row, list.slice(0, 12), function (it) { openDetail(it); });
     }, function () {
-      if (!hasCache) shell.row.replaceChildren(el("div", "mh-row-empty", "加载失败"));
+      if (!hasCache) shell.row.replaceChildren(window._diag("加载失败"));
     });
   }
   if (hasCache) rowLoad(shell.section, load);
@@ -3964,7 +4008,7 @@ function bbjLoadCat(reset) {
     state.loading = false;
     if (token !== state.reqToken) return;
     $("browseLoading").style.display = "none";
-    if (!state.source.length) { $("grid").replaceChildren(el("div", "mh-row-empty", "加载失败")); $("browseSub").textContent = ""; }
+    if (!state.source.length) { $("grid").replaceChildren(window._diag("加载失败")); $("browseSub").textContent = ""; }
     state.noMore = true;
   });
 }
@@ -4438,7 +4482,7 @@ function jrankLoadCat(reset) {
     if (token !== state.reqToken) return;
     $("browseLoading").style.display = "none";
     if (!state.source.length) {
-      $("grid").replaceChildren(el("div", "mh-row-empty", "加载失败"));
+      $("grid").replaceChildren(window._diag("加载失败"));
       $("browseSub").textContent = "";
     }
     state.noMore = true;
@@ -5038,7 +5082,7 @@ function renderWoRow(box, site) {
       if (!list.length) { if (!hasCache) shell.row.replaceChildren(el("div", "mh-row-empty", "暂无数据")); return; }
       state.woCache[ck] = list; saveHomeDisk();
       fillRow(shell.row, list.slice(0, 12), function (it) { openDetail(it); });
-    }, function () { if (!hasCache) shell.row.replaceChildren(el("div", "mh-row-empty", "加载失败")); });
+    }, function () { if (!hasCache) shell.row.replaceChildren(window._diag("加载失败")); });
   };
   if (hasCache) { if (homeCacheStale()) homePrefetch(load); return; }
   rowLoad(shell.section, load);
@@ -5095,7 +5139,7 @@ function woLoadCat(reset) {
     state.loading = false;
     if (token !== state.reqToken) return;
     $("browseLoading").style.display = "none"; state.noMore = true;
-    if (!state.source.length) $("grid").replaceChildren(el("div", "mh-row-empty", "加载失败，返回重试"));
+    if (!state.source.length) $("grid").replaceChildren(window._diag("加载失败，返回重试"));
   });
 }
 function woPaintCat(list, token, page) {
@@ -6657,7 +6701,7 @@ function renderHomeRows(force) {
         frag.appendChild(card);
       });
       trendShell.row.replaceChildren(frag);
-    }, function () { trendShell.row.replaceChildren(el("div", "mh-row-empty", "加载失败")); });
+    }, function () { trendShell.row.replaceChildren(window._diag("加载失败")); });
   }
   /* 追剧：与「继续观看」相同——只有用户自己加过追更才显示这一行 */
   if (!isHomeSiteHidden("zhuiju")) {
@@ -6730,7 +6774,7 @@ function renderHomeRows(force) {
         saveHomeDisk();
         fillRow(shell.row, (list || []).slice(0, HOME_FIRST), function (it) { openDetail(it); });
         warmupCategoryHome(c.slug, list || [], shell.row, HOME_FIRST);
-      }, function () { if (!hasCache) shell.row.replaceChildren(el("div", "mh-row-empty", "加载失败")); });
+      }, function () { if (!hasCache) shell.row.replaceChildren(window._diag("加载失败")); });
     };
     if (hasCache) {
       // 磁盘/内存里已有上次的结果：先秒显，缓存旧了才在后台悄悄重抓一遍覆盖
@@ -12500,6 +12544,43 @@ function stateText(s) {
 /* ---------- 网盘检测（自动全量，受“增强功能 -> 网盘检测”开关控制） ----------
    渲染完立即对全部可检测类型做预检：解析走小批池（PAN_RESOLVE_CHUNK），App 检测按大批发（PAN_CHECK_BATCH）。
    解析失败只降级成灰点不删行；App 判定失效(bad)的等全部检测完后统一沉底重排（paintResources → visibleItems）。 */
+
+/* ---------- HTML 端网盘有效性检测（v215）：壳原生网络探测分享页，无需 App 网盘能力 ----------
+   保守策略：仅当响应 404 或命中明确失效关键词才判 bad；其余一律 uncertain（灰点），绝不误删有效行 */
+var PAN_BAD_WORDS = /分享已取消|分享已失效|链接已失效|链接已过期|文件已失效|文件不存在|该分享不存在|分享不存在|已失效|已过期|已被取消|已被删除|页面不存在|内容违规|deleted|invalid|not.?exist|cancel/i;
+function panProbe(type, url, password) {
+  var probeUrl = url;
+  if (type === "quark" && password) probeUrl += "?pwd=" + encodeURIComponent(password);
+  if (!window._plReq) return Promise.resolve({ state: "uncertain" });
+  return window._plReq("net.request", { method: "GET", responseType: "text", timeout: 12, headers: { "User-Agent": "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36" }, credentials: "omit", url: probeUrl }).then(function (r) {
+    var st = r && r.status || 0;
+    var t = String((r && r.body) || "");
+    window._probeLast = "pl " + st + " " + probeUrl.slice(0, 50);
+    if (st === 404 || st === 410) return { state: "bad" };
+    if (PAN_BAD_WORDS.test(t)) return { state: "bad" };
+    if (st >= 200 && st < 400) return { state: "ok" };
+    return { state: "uncertain" };
+  }, function (e) {
+    window._probeErr = String(e && e.message || e);
+    return { state: "uncertain" };
+  });
+}
+function panProbeBatch(items) {
+  var CONC = 12, i = 0, out = new Array(items.length);
+  function next() {
+    if (i >= items.length) return Promise.resolve(out);
+    var k = i++;
+    var it = items[k];
+    return panProbe(it.type, it.url, it.password).then(function (st) {
+      out[k] = { state: st };
+      return next();
+    });
+  }
+  var ps = [];
+  for (var c = 0; c < CONC; c++) ps.push(next());
+  return Promise.all(ps);
+}
+
 function scheduleCheck(tryN) {
   var n = tryN || 0;
   var why = "";
@@ -12604,10 +12685,8 @@ function queuePanCheck(items, token) {
       } catch (eS) {}
       return;
     }
-    var payload = batch.map(function (it) { return { type: it.type, url: it.url, password: it.password || "" }; });
-    fm.pan.check(payload).then(function (res) {
+    panProbeBatch(batch).then(function (results) {
       if (token !== state.panToken) return;
-      var results = (res && res.results) || [];
       batch.forEach(function (it, i) {
         var r = results[i];
         it._checking = false; it._checked = true;

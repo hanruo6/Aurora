@@ -13,8 +13,8 @@
 <link rel="dns-prefetch" href="https://api.tmdb.org">
 <link rel="preconnect" href="https://images.tmdb.org" crossorigin>
 <link rel="dns-prefetch" href="https://images.tmdb.org">
-<link rel="preconnect" href="https://image.tmdb.org" crossorigin>
-<link rel="dns-prefetch" href="https://image.tmdb.org">
+<link rel="preconnect" href="https://images.tmdb.org" crossorigin>
+<link rel="dns-prefetch" href="https://images.tmdb.org">
 <link rel="preconnect" href="https://so.252035.xyz" crossorigin>
 <link rel="dns-prefetch" href="https://so.252035.xyz">
 <link rel="preconnect" href="https://4kzn.cc" crossorigin>
@@ -5933,7 +5933,7 @@ function mapTmdbTrendItem(r) {
   var title = r.title || r.name || "";
   var yr = (r.release_date || r.first_air_date || "").slice(0, 4);
   var isMovie = r.media_type === "movie";
-  var poster = r.poster_path ? ("https://image.tmdb.org/t/p/w1280" + r.poster_path) : "";
+  var poster = r.poster_path ? ("https://images.tmdb.org/t/p/w1280" + r.poster_path) : "";
   return {
     id: "__tmdb__" + r.id,
     title: title,

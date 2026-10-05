@@ -223,8 +223,9 @@ def _aes_cbc_decrypt(key: bytes, iv: bytes, data: bytes) -> bytes:
 SITE = "https://hongguoduanju.com"
 EPISODE_PREFIX = "hg-episode-v1:"
 # 红果每集视频模型按清晰度返回多条独立线路（360/480/540/720/1080），
-# 每条带 main_url + backup_url 双 CDN 与独立加密材料。这里把清晰度作为
-# TVBox 多线路暴露；内封音/视轨在解密 _rewrite_moov 时天然全部保留。
+# 每条带 main_url + backup_url 双 CDN 与独立加密材料。清晰度不再占用
+# TVBox 多线路，改由 playerContent 的 url 名称-地址 pairs 数组暴露（壳画质栏）；
+# 内封音/视轨在解密 _rewrite_moov 时天然全部保留。
 _HG_QUALITY_LINES = (
     ("1080", "红果超清"),
     ("720",  "红果高清"),
@@ -250,10 +251,21 @@ def _split_episode_token(token: str) -> tuple[str, str]:
             return head, tail
     return "1080", body
 
-# 官网搜索 SSR 固定约 10 条且几乎不认 page；用多关键词轮换实现“翻页”
+# 官网搜索 SSR 固定约 10 条且几乎不认 page；用多关键词轮换实现"翻页"
 _AI_MANJU_KEYWORDS = [
     "AI漫剧", "AI动画", "AI短剧", "AI动漫", "漫剧AI", "二次元AI", "AI漫画", "动画短剧",
+    "动态漫", "漫画剧", "AI国漫", "二次元短剧", "漫改短剧", "动漫推荐", "国漫短剧", "AI番剧",
 ]
+# 全局跨页去重缓存：{category_key: set(series_id)}
+_KW_ROTATE_SEEN: dict[str, set] = {}
+_KW_SEEN_LOCK = threading.Lock()
+
+# 同系列（多季）线路缓存：{series_id: (base_name, [(season_no, sid, name, cover), ...])}
+# 进程内缓存避免每次进详情页都打一遍搜索接口。
+_SERIES_LINES_CACHE: dict[str, tuple] = {}
+_SERIES_LINES_LOCK = threading.Lock()
+# 其他季的集列表缓存：{series_id: [vid, ...]}
+_SEASON_VIDS_CACHE: dict[str, list] = {}
 
 
 # ---- 本机解密缓存 + 自动清理 ----
@@ -529,6 +541,7 @@ def _multi_download(url: str, headers: dict | None = None, timeout: int = 90, wo
 
 _MANJU_KEYWORDS = [
     "漫剧", "动漫短剧", "二次元", "漫画短剧", "国漫短剧", "日漫", "动态漫", "动画剧",
+    "漫画剧", "漫改短剧", "动漫推荐", "国漫", "日漫短剧", "漫画推荐", "动画短剧", "二次元短剧",
 ]
 
 VIDEO_URL = "https://api5-normal-sinfonlineb.fqnovel.com/novel/player/multi_video_model/v1/"
@@ -929,19 +942,60 @@ def _fetch_moov(url: str) -> tuple[int, int, bytes]:
     return total, moov_start, moov
 
 
+# frma 里可能出现 CDN 私有标签（实测 bvc2/bvc1），播放器不认会导致"只有声音没画面"。
+# 因此还原编码名一律以采样条目内真实存在的解码配置盒为准，frma 仅作兜底参考。
+_DECODER_CONFIG_TO_CODEC = (
+    (b"hvcC", b"hvc1"),  # HEVC 参数集
+    (b"avcC", b"avc1"),  # AVC/H.264 参数集
+    (b"dvCC", b"dvh1"),  # Dolby Vision（HEVC 封装）
+    (b"dvHC", b"dvh1"),  # Dolby Vision（HEVC 封装）
+    (b"vpcC", b"vp09"),  # VP9
+    (b"av1C", b"av01"),  # AV1
+)
+
+# frma 允许回退的已知编码名（防止把不知名字符串写进 stsd）
+_KNOWN_CODEC_NAMES = {
+    b"avc1", b"avc2", b"avc3", b"avc4",
+    b"hvc1", b"hev1", b"hvc2", b"hev2",
+    b"dvh1", b"dvhe", b"dva1", b"dvav",
+    b"mp4a", b"ec-3", b"ac-3", b"opus", b"fLaC", b"alac",
+    b"mp4v", b"vp08", b"vp09", b"av01",
+    b"samr", b"sawb",
+}
+
+
 def _original_format_near(data: bytearray, entry_pos: int, default: bytes) -> bytes:
-    """从 sample entry 后的 sinf/frma 读取原始四字符码（avc1/hvc1/mp4a 等）。"""
-    blob = bytes(data[entry_pos : min(len(data), entry_pos + 800)])
+    """推断采样条目的真实编码名。
+    entry_pos 指向 encv/enca 四字符码本身；条目大小字段在其前 4 字节。
+    1) 条目大小范围内找 hvcC/avcC 等解码配置盒，按配置盒定编码（最可靠）；
+    2) 否则读 sinf/frma 的原始四字符码（仅接受已知编码名，CDN 可能写 bytevc2 等私有标签）；
+    3) 都没有就用 default。
+    注意：bytevc2/bvc2 是字节跳动 BVC2 私有编码的标签，通用播放器不认，绝不能写回 stsd。"""
+    size = 0
+    if entry_pos >= 4 and entry_pos + 4 <= len(data):
+        try:
+            size = struct.unpack(">I", data[entry_pos - 4 : entry_pos])[0]
+        except Exception:
+            size = 0
+    if size < 8 or entry_pos - 4 + size > len(data):
+        size = 0
+    window = bytes(
+        data[entry_pos : min(len(data), entry_pos + (size - 8 if size else 800))]
+    )
+    for marker, codec in _DECODER_CONFIG_TO_CODEC:
+        if marker in window:
+            return codec
     idx = 0
     while True:
-        pos = blob.find(b"frma", idx)
+        pos = window.find(b"frma", idx)
         if pos < 0:
-            return default
-        if pos + 8 <= len(blob):
-            fmt = bytes(blob[pos + 4 : pos + 8])
-            if fmt not in (b"", b"\x00\x00\x00\x00", b"encv", b"enca") and all(32 <= c < 127 for c in fmt):
+            break
+        if pos + 8 <= len(window):
+            fmt = bytes(window[pos + 4 : pos + 8])
+            if fmt in _KNOWN_CODEC_NAMES and all(32 <= c < 127 for c in fmt):
                 return fmt
         idx = pos + 4
+    return default
 
 
 def _restore_cenc_codecs(data: bytearray) -> None:
@@ -3512,6 +3566,19 @@ def _select_quality(video_list: Any, wanted: str = "1080") -> tuple[str, dict[st
         rows[definition] = item
     if not rows:
         raise HongguoPluginError("播放模型没有清晰度")
+    # bytevc2/bvc2 是字节跳动私有编码（BVC2），第三方播放器没有对应解码器，
+    # 强行播放只有声音没画面。只保留 hvc1/h264 等 gear 描述的标准编码档位；
+    # 若过滤后没有任何标准编码档（部分旧集全是 bytevc2），则放开限制保底可播。
+    def _is_standard_codec(item: Mapping[str, Any]) -> bool:
+        gear = _text(item.get("gear_des_key"))
+        if not gear:
+            return True
+        if "bytevc2" in gear or "bvc2" in gear or "bvc1" in gear:
+            return False
+        return True
+    standard_rows = {q: it for q, it in rows.items() if _is_standard_codec(it)}
+    if standard_rows:
+        rows = standard_rows
     requested = _quality(wanted)
     order = [requested] + [item for item in _QUALITY_ORDER if item != requested]
     for definition in order:
@@ -3676,33 +3743,183 @@ def _search_loader(key: str) -> dict:
     return last
 
 
-def _search_by_keywords(keywords, page: int) -> dict:
-    """多关键词轮换：第 N 页用第 N 个关键词（循环），避免搜索无法翻页。"""
+
+# ----------------------------------------------------------------
+# 同系列（多季）检测：把同 IP 的第一季/第二季/第三季...
+# 变成详情页里的独立播放线路，切线路 = 切季，不用退出去重新搜索。
+#
+# 数据来源：官网搜索接口（/search/<关键词>）。实测它会把
+# "隐身侍卫"和"隐身侍卫第二季"同框返回，且条目里带 series_id。
+# 匹配规则：严格正则 —— 只有「基名 + 第X季/部」结构才算同系列，
+# 防止"隐身老公不好惹"这种标题撞词的杂鱼混进线路列表。
+# ----------------------------------------------------------------
+_CN_NUM = "零一二三四五六七八九十百"
+
+def _season_num(text: str) -> int:
+    """'第二季'/'第2季'/'第3部'/'第一百零一季' → 2/3/101；解析失败返回 0。"""
+    m = re.search(r"第([0-9零一二三四五六七八九十百]+)[季部]", str(text or ""))
+    if not m:
+        return 0
+    token = m.group(1)
+    if token.isdigit():
+        return int(token)
+    # 中文数字：十/十X/X十/X十Y/百X 简易解析
+    total, tmp = 0, 0
+    for ch in token:
+        if ch == "十":
+            total = (tmp or 1) * 10
+            tmp = 0
+        elif ch == "百":
+            total = (tmp or 1) * 100
+            tmp = 0
+        else:
+            d = _CN_NUM.find(ch)
+            if d <= 0:
+                if ch == "零":
+                    continue
+                return 0
+            tmp = tmp * 10 + d
+    return total + tmp
+
+
+def _series_base_name(name: str):
+    """剥掉剧名尾巴上的季数后缀，返回 (基名, 季号)。无季数后缀 → (原名, 0)。"""
+    text = str(name or "").strip()
+    m = re.search(r"^(.*?)[\s·:：\-—]*第([0-9零一二三四五六七八九十百]+)[季部]$", text)
+    if not m:
+        return text, 0
+    base = m.group(1).strip(" ·:：-—")
+    n = _season_num(text)
+    return (base or text), n
+
+
+def _fetch_series_lines(sid: str, name: str):
+    """查同系列各季。返回 (基名, [(季号, sid, 剧名, 封面), ...])；查不到或单季返回 ([], [])。"""
+    sid = str(sid or "")
+    name = str(name or "")
+    if not sid or not name:
+        return [], []
+    with _SERIES_LINES_LOCK:
+        hit = _SERIES_LINES_CACHE.get(sid)
+    if hit is not None:
+        return hit
+
+    base, n = _series_base_name(name)
+    queries = []
+    if n > 0:
+        queries.append(name)          # 本体名，撞概率最高
+    queries.append(base)              # 基名，找同系列其他季
+    if n == 0:
+        # 本体无季数：主动探一探“基名+第二季”这种命名的姊妹季
+        queries.append(base + "第二季")
+
+    collected = {}   # sid -> (name, cover)
+    seen_q = set()
+    for q in queries:
+        q = str(q or "").strip()
+        if not q or q in seen_q:
+            continue
+        seen_q.add(q)
+        try:
+            page = _search_loader(q)
+        except Exception:
+            page = {}
+        for x in (page.get("searchList") or []):
+            vd = x.get("video_data") or {}
+            osid = str(vd.get("series_id") or "")
+            if not osid:
+                continue
+            oname = str(vd.get("series_title") or x.get("name") or "").strip()
+            ocover = str(vd.get("series_cover") or "")
+            if oname:
+                collected[osid] = (oname, ocover)
+        try:
+            time.sleep(0.2)
+        except Exception:
+            pass
+
+    lines = {}   # label -> (label, sid, cover)，label 唯一防同季号撞车
+    for osid, (oname, ocover) in collected.items():
+        obase, on = _series_base_name(oname)
+        # 同系列判定：基名完全一致且不等于自己。
+        # 基名本体（无季数后缀）按惯例视为第一季。
+        if obase != base:
+            continue
+        if osid == sid:
+            continue
+        if not on:
+            # 无后缀本体：只有当本剧自己是带季数的（如正在看第二季），
+            # 它才算"第一季"；本剧自己无后缀时它就是自己，已在上面排除。
+            if n == 0:
+                continue
+            on = 1
+        label = "第%d季" % on
+        # 同一个季号出现多个 sid（官方重传/换源），保留热度文本更长的那个
+        if label in lines:
+            old = lines[label]
+            if len(str(ocover)) >= len(str(old[2])):
+                lines[label] = (label, osid, ocover)
+            continue
+        lines[label] = (label, osid, ocover)
+
+    result = (base, [lines[k] for k in sorted(lines, key=lambda x: _season_num(x))])
+    if result[1]:
+        with _SERIES_LINES_LOCK:
+            _SERIES_LINES_CACHE[sid] = result
+    return result
+
+
+def _search_by_keywords(keywords, page: int, seen_key: str = "") -> dict:
+    """多关键词轮换：第 N 页用第 N 个关键词（循环），跨页去重避免重复内容。
+
+    官网 /search/<kw> 不认 page 参数，每词固定约 10 条。为撑起翻页：
+    1. 第 N 页优先用第 N 个关键词
+    2. 与已出现过的 series_id 去重；若整页全重，往后顺延找下一个未用过的关键词
+    3. 池子耗尽时 pagecount 封顶，前端不再加载更多
+    """
     page = max(1, int(page or 1))
     kws = [k for k in (keywords or []) if k]
     if not kws:
         kws = ["短剧"]
-    key = kws[(page - 1) % len(kws)]
-    p = _search_loader(key)
-    rows = p.get("searchList") or []
-    # 去重空 id
+    pagecount = len(kws)
+    if page > pagecount:
+        # 池子翻完了，直接给空页，前端停止加载
+        return {
+            "page": page,
+            "pagecount": pagecount,
+            "limit": 0,
+            "total": 0,
+            "list": [],
+        }
+    with _KW_SEEN_LOCK:
+        seen = _KW_ROTATE_SEEN.setdefault(seen_key or "default", set())
     out = []
-    seen = set()
-    for x in rows:
-        it = _item(x)
-        vid = str(it.get("vod_id") or "")
-        if not vid or vid in seen:
-            continue
-        seen.add(vid)
-        out.append(it)
-    # 虚拟页数：关键词数；若站点有 totalCount 也参考
-    total = int(p.get("totalCount") or 0)
-    pagecount = max(len(kws), (total + 9) // 10 if total else len(kws))
+    used_kw = kws[(page - 1) % len(kws)]
+    # 从本页关键词开始，最多扫一轮全部关键词，找到能产出新内容的词
+    start_idx = (page - 1) % len(kws)
+    for offset in range(len(kws)):
+        idx = (start_idx + offset) % len(kws)
+        kw = kws[idx]
+        p = _search_loader(kw)
+        rows = p.get("searchList") or []
+        fresh = []
+        for x in rows:
+            it = _item(x)
+            vid = str(it.get("vod_id") or "")
+            if not vid or vid in seen:
+                continue
+            seen.add(vid)
+            fresh.append(it)
+        if fresh:
+            used_kw = kw
+            out = fresh
+            break
+        # 这个词全是旧的，继续找下一个词
     return {
         "page": page,
-        "pagecount": max(1, pagecount),
+        "pagecount": pagecount,
         "limit": len(out),
-        "total": total or len(out) * pagecount,
+        "total": len(seen) or len(out),
         "list": out,
     }
 
@@ -3870,25 +4087,39 @@ class Spider(_BaseSpider):
             page = max(1, int(pg))
         except (TypeError, ValueError):
             page = 1
-        # 漫剧 / AI漫剧：官网搜索不支持真翻页，多关键词轮换
+        # 漫剧 / AI漫剧：官网搜索不支持真翻页，多关键词轮换 + 跨页去重
         if tid in ("comic", "manju", "漫剧"):
             try:
                 p = _category_loader(page, {"tab": "2", "sort_type": "1"})
                 rows = p.get("recommendList") or []
                 if rows:
                     page_data = p.get("pagination") or {}
-                    return {
-                        "page": page,
-                        "pagecount": int(page_data.get("totalPages") or 1),
-                        "limit": len(rows),
-                        "total": int(page_data.get("total") or len(rows)),
-                        "list": [_cat_item(x) for x in rows],
-                    }
+                    # tab=2 池子做跨页去重（不同 sort 顺序会撞车）
+                    pagecount = int(page_data.get("totalPages") or 1)
+                    if page > pagecount:
+                        return _search_by_keywords(_MANJU_KEYWORDS, page - pagecount, seen_key="manju_tab2_pool")
+                    with _KW_SEEN_LOCK:
+                        seen = _KW_ROTATE_SEEN.setdefault("manju_tab2_pool", set())
+                    out = []
+                    for x in rows:
+                        it = _cat_item(x)
+                        vid = str(it.get("vod_id") or "")
+                        if vid and vid not in seen:
+                            seen.add(vid)
+                            out.append(it)
+                    if out:
+                        return {
+                            "page": page,
+                            "pagecount": pagecount,
+                            "limit": len(out),
+                            "total": int(page_data.get("total") or len(out)),
+                            "list": out,
+                        }
             except Exception:
                 pass
-            return _search_by_keywords(_MANJU_KEYWORDS, page)
+            return _search_by_keywords(_MANJU_KEYWORDS, page, seen_key="manju_kw_pool")
         if tid in ("ai_comic", "ai_manju", "AI漫剧", "ai漫剧"):
-            return _search_by_keywords(_AI_MANJU_KEYWORDS, page)
+            return _search_by_keywords(_AI_MANJU_KEYWORDS, page, seen_key="ai_manju_pool")
         q = {"tab": "1", "sort_type": "1"}
         if tid == "latest":
             q["sort_type"] = "2"
@@ -3926,9 +4157,9 @@ class Spider(_BaseSpider):
         # AI/漫剧相关搜索也走关键词轮换，提升翻页体验
         low = key.lower()
         if key in ("AI漫剧", "ai漫剧") or "ai漫" in low:
-            return _search_by_keywords(_AI_MANJU_KEYWORDS, page)
+            return _search_by_keywords(_AI_MANJU_KEYWORDS, page, seen_key="search_ai_manju")
         if key in ("漫剧", "动漫短剧"):
-            return _search_by_keywords(_MANJU_KEYWORDS, page)
+            return _search_by_keywords(_MANJU_KEYWORDS, page, seen_key="search_manju")
 
         p = _search_loader(key)
         rows = p.get("searchList") or []
@@ -3950,27 +4181,65 @@ class Spider(_BaseSpider):
         s = p.get("seriesDetail") or {}
         vids = s.get("vid_list") or []
         actors = [str(x.get("nickname")) for x in (s.get("celebrities") or []) if isinstance(x, dict) and x.get("nickname")]
+        series_name = str(s.get("series_name") or "")
+
+        def _ep_string(q, vid_list):
+            return "#".join(
+                "第%d集%s%s%s%s" % (i + 1, "$", EPISODE_PREFIX, q + ":", str(v))
+                for i, v in enumerate(vid_list)
+            )
+        # ── 线路=季（每季一条），清晰度不占用选集也不占用线路 ──
+        # 每集 token 固定 'hg-episode-v1:<q>:<vid>'，默认 1080；
+        # 真实画质切换由 playerContent 返回 url pairs 数组交给壳的画质栏。
+        # 本季季号：有后缀用真实季号；无后缀但有系列时按第一条线路的下一档推断，
+        # 推不出来就默认第1季（官网惯例：无后缀本体 = 第一季）。
         play_from = []
         play_url = []
-        for q, line_name in _HG_QUALITY_LINES:
-            eps = "#".join(
-                "第%d集%s%s%s%s" % (i + 1, "$", EPISODE_PREFIX, q + ":", str(v))
+        try:
+            _, other_lines = _fetch_series_lines(sid, series_name)
+        except Exception:
+            other_lines = []
+        base, self_n = _series_base_name(series_name)
+        if self_n == 0 and other_lines:
+            # 无后缀本体但存在其他季 → 自己就是第1季
+            self_n = 1
+        self_label = ("第%d季" % self_n) if self_n else series_name
+        play_from.append(self_label)
+        # 每集一个 token，第 i 集 → vids[i]，默认清晰度 1080（实际由画质栏切换）
+        play_url.append(
+            "#".join(
+                "第%d集%s%s1080:%s" % (i + 1, "$", EPISODE_PREFIX, str(v))
                 for i, v in enumerate(vids)
             )
-            play_from.append(line_name)
-            play_url.append(eps)
-        return {"list": [{"vod_id": sid, "vod_name": str(s.get("series_name") or ""), "vod_pic": str(s.get("series_cover") or ""), "vod_year": "", "vod_area": "", "vod_director": "", "vod_actor": ",".join(actors), "vod_content": str(s.get("series_intro") or ""), "vod_remarks": str(s.get("episode_right_text") or ""), "vod_play_from": "$$$".join(play_from), "vod_play_url": "$$$".join(play_url)}]}
+        )
+        for label, osid, _cover in other_lines:
+            # 拉其他季全集 vid 列表（详情页 SSR），带进程内缓存
+            ovids = _SEASON_VIDS_CACHE.get(osid)
+            if ovids is None:
+                try:
+                    op = ((_data(SITE + "/detail?series_id=" + quote(osid, safe="")).get("loaderData") or {}).get("detail_page") or {})
+                    ovids = ((op.get("seriesDetail") or {}).get("vid_list") or [])
+                except Exception:
+                    ovids = []
+                if ovids:
+                    _SEASON_VIDS_CACHE[osid] = ovids
+            if not ovids:
+                continue
+            play_from.append(str(label))
+            play_url.append(
+                "#".join(
+                    "第%d集%s%s1080:%s" % (i + 1, "$", EPISODE_PREFIX, str(v))
+                    for i, v in enumerate(ovids)
+                )
+            )
+        return {"list": [{"vod_id": sid, "vod_name": series_name, "vod_pic": str(s.get("series_cover") or ""), "vod_year": "", "vod_area": "", "vod_director": "", "vod_actor": ",".join(actors), "vod_content": str(s.get("series_intro") or ""), "vod_remarks": str(s.get("episode_right_text") or ""), "vod_play_from": "$$$".join(play_from), "vod_play_url": "$$$".join(play_url)}]}
     def playerContent(self, flag, id, vipFlags=None):
-        # 从线路名（flag，如“红果超清/红果高清”）与集 token 双路解析清晰度。
-        # token 已是 'hg-episode-v1:<q>:<vid>'，flag 用于旧壳只传线路名时兜底。
+        # 从集 token 解析 vid；画质不再占用线路/选集，改由本方法返回
+        # url pairs 数组（[名称, 地址, 名称, 地址...]）交给壳渲染画质栏。
+        # FongMi/OK影视 UrlAdapter 按 (name, value) 两两配对构造 Url.values，
+        # isMulti() 后壳显示画质切换；localProxy 按 q 参数优先解析对应清晰度。
         token_q, vid = _split_episode_token(id)
-        line_q = "1080"
-        for name_key, candidate_q in _QUALITY_LINE_NAME_TO_Q.items():
-            if name_key in str(flag or ""):
-                line_q = candidate_q
-                break
-        q = line_q if token_q == "1080" and str(flag) else token_q
-        q = q if q in _QUALITY_LINE_NAME_TO_Q else "1080"
+        q = token_q if token_q in _QUALITY_LINE_NAME_TO_Q else "1080"
         if not str(vid).isdigit():
             return {
                 "parse": 1,
@@ -3988,27 +4257,33 @@ class Spider(_BaseSpider):
             proxy = ""
         if proxy:
             sep = "&" if "?" in proxy else "?"
-            # 保留壳自带的 do=py，只追加业务参数与清晰度线路
-            url = proxy + sep + urlencode(
-                {
-                    "vid": vid,
-                    "q": q,
-                    "hg": "cenc",
-                    "did": self.device_id or "",
-                    "iid": self.install_id or "",
-                }
-            )
+            # 画质栏：每档清晰度一项，名称-地址两两配对（UrlAdapter 协议）。
+            # 每项地址带各自首选 q，localProxy 优先解析该档；缺档时自动回退
+            # 下一档，保证任何档位缺失都不会黑屏。
+            pairs = []
+            for qq in ("1080", "720", "540", "480", "360"):
+                item = proxy + sep + urlencode(
+                    {
+                        "vid": vid,
+                        "q": qq,
+                        "hg": "cenc",
+                        "did": self.device_id or "",
+                        "iid": self.install_id or "",
+                    }
+                )
+                pairs.append(qq + "P")
+                pairs.append(item)
             return {
                 "parse": 0,
                 "jx": 0,
                 "playUrl": "",
-                "url": url,
+                "url": pairs,
                 "header": {
                     "User-Agent": MEDIA_UA,
                     "Referer": "https://novel.snssdk.com/",
                 },
             }
-        # 备用：本机 Range 流（FongMi 更友好）
+        # 备用：本机 Range 流（FongMi 更友好），不支持画质切换，单一档位
         try:
             port = _start_stream_server()
         except Exception:
@@ -4082,7 +4357,7 @@ class Spider(_BaseSpider):
                     seen_q.add(q)
                     quals.append(q)
 
-            # 缓存命中直接返回。用户指定线路清晰度(user_q)时，只认该清晰度缓存，
+            # 缓存命中直接返回。用户指定清晰度(user_q)时，只认该清晰度缓存，
             # 不能回退命中其它清晰度缓存（否则请求480会拿到360内容）。
             if user_q:
                 primary = [user_q]
@@ -4098,6 +4373,18 @@ class Spider(_BaseSpider):
             if not rows:
                 return [500, "text/plain; charset=utf-8", b"empty video list"]
 
+            # bytevc2/bvc2（字节私有 BVC2 编码）第三方播放器解不了：只有声音没画面。
+            # 直接从候选里剔除；若全被剔（个别旧集只有 bytevc2 档），保底放开。
+            def _is_standard_codec(it: Any) -> bool:
+                gear = _text(it.get("gear_des_key"))
+                if not gear:
+                    return True
+                return not ("bytevc2" in gear or "bvc2" in gear or "bvc1" in gear)
+
+            filtered = [it for it in rows if _is_standard_codec(it)]
+            if not filtered:
+                filtered = rows
+
             last_err = None
             for wanted in quals:
                 try:
@@ -4106,7 +4393,7 @@ class Spider(_BaseSpider):
                     if cached:
                         return [200, "video/mp4", cached]
 
-                    _, item = _select_quality(rows, wanted)
+                    _, item = _select_quality(filtered, wanted)
                     url = _media_url(item)
                     spade = _spade_value(item)
                     if not url or not spade:

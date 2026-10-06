@@ -3720,6 +3720,93 @@ def _item(x):
 def _cat_item(x):
     return _item(x)
 
+
+_RANK_SLUG_NAMES = {
+    "hot-comic-drama": "漫剧热播榜",
+    "hot-ai-drama": "AI剧热播榜",
+    "hot-real-drama": "真人剧热播榜",
+    "hot-drama": "热播榜",
+}
+
+
+def _parse_rank_page(url: str, page: int = 1) -> list:
+    """解析 /rank/hot-<slug> 页面 SSR 直出的榜单 HTML（无 JSON 数据）。
+    官网榜单原生支持 ?page=N 翻页（实测 1~5 页、每页 20 条、第 6 页起 404）。
+    条目结构：<li class="pc-list-item..."><a href="/detail?series_id=.."
+    aria-label="查看<标题>">...<img src=封面>...<热度文本>"""
+    full = url if page <= 1 else url + "?page=%d" % page
+    try:
+        raw = _page(full)
+    except Exception:
+        return []
+    out = []
+    seen = set()
+    for li in re.findall(r'<li class="pc-list-item[^"]*">(.*?)</li>', raw, re.S):
+        sid = re.search(r"series_id=(\d{15,25})", li)
+        if not sid:
+            continue
+        sid = sid.group(1)
+        if sid in seen:
+            continue
+        seen.add(sid)
+        title_m = (
+            re.search(r'aria-label="查看([^"]+)"', li)
+            or re.search(r'id="rank-title-\d+"[^>]*>([^<]+)<', li)
+        )
+        # 封面：官网用 ~tplv-shrink:640:0.image/webp 两种后缀，直接认任意 https 图片 URL
+        cover_m = (
+            re.search(r'<img[^>]+src="(https://[^"]+)"', li)
+            or re.search(r'srcSet="(https://[^"]+)"', li)
+        )
+        text = " ".join(re.sub(r"<[^>]+>", " ", li).split())
+        heat_m = re.search(r"([\d.]+)万热度", text)
+        score_m = re.search(r"评分\s*([\d.]+)", text)
+        # 标题兜底：aria-label 没有时从纯文本截（去掉排名数字和热度段）
+        title = (title_m.group(1) if title_m else "").strip()
+        if not title:
+            m = re.match(r"^\d+\s+(.+?)(?:\s+\d[\d.]*万热度|$)", text)
+            title = (m.group(1) if m else text[:16]).strip()
+        remarks_bits = []
+        if heat_m:
+            remarks_bits.append(heat_m.group(1) + "万热度")
+        if score_m:
+            remarks_bits.append("评分" + score_m.group(1))
+        out.append({
+            "vod_id": sid,
+            "vod_name": title,
+            "vod_pic": cover_m.group(1) if cover_m else "",
+            "vod_remarks": " ".join(remarks_bits),
+        })
+    return out
+
+
+def _rank_html_fallback(slug: str, page: int = 1) -> list:
+    """榜单 SSR 解析失败时的兜底：直接在页面上找详情锚点。"""
+    try:
+        raw = _page(SITE + "/rank/" + slug)
+    except Exception:
+        return []
+    out = []
+    seen = set()
+    for sid, body in re.findall(
+        r'<a[^>]+href="/detail\?series_id=(\d{15,25})"[^>]*>(.{0,600}?)</a>', raw, re.S
+    ):
+        if sid in seen:
+            continue
+        seen.add(sid)
+        t = re.search(r'aria-label="查看([^"]+)"', body)
+        title = (t.group(1) if t else re.sub(r"<[^>]+>", "", body)[:20]).strip()
+        pic = re.search(r'src="(https://[^"]+)"', body)
+        out.append({
+            "vod_id": sid,
+            "vod_name": title,
+            "vod_pic": pic.group(1) if pic else "",
+            "vod_remarks": _RANK_SLUG_NAMES.get(slug, "热播榜"),
+        })
+        if len(out) >= 20:
+            break
+    return out
+
 def _filter_group(key, name, values):
     return {"key": key, "name": name, "value": [{"n": n, "v": v} for n, v in values]}
 
@@ -3992,56 +4079,66 @@ class Spider(_BaseSpider):
             pass
 
     def homeContent(self, filter):
+        # 官网真实结构：三大分类（带二级筛选）+ 三个热播榜。
+        # “推荐”不作为分类输出：壳的首页本身会把 homeContent 的 list 渲染成
+        # 推荐位，再加一个“推荐”分类会跟它重复（界面出现两个推荐）。
         class_list = [
-            {"type_id": "all", "type_name": "短剧"},
-            {"type_id": "ai_comic", "type_name": "AI漫剧"},
-            {"type_id": "latest", "type_name": "最新"},
-            {"type_id": "hot", "type_name": "最热"},
-            {"type_id": "male", "type_name": "男频"},
-            {"type_id": "female", "type_name": "女频"},
+            {"type_id": "manju", "type_name": "漫剧"},
+            {"type_id": "ai", "type_name": "AI剧"},
+            {"type_id": "real", "type_name": "真人剧"},
+            {"type_id": "rank_manju", "type_name": "漫剧热播榜"},
+            {"type_id": "rank_ai", "type_name": "AI剧热播榜"},
+            {"type_id": "rank_real", "type_name": "真人剧热播榜"},
         ]
-        groups = [
-            {"key": "topic", "name": "主题", "value": [
-                {"n": "全部", "v": ""}, {"n": "现言", "v": "cate_1021"}, {"n": "女性成长", "v": "cate_1048"},
-                {"n": "脑洞", "v": "cate_262"}, {"n": "奇幻", "v": "cate_1020"}, {"n": "玄幻", "v": "cate_1019"},
-                {"n": "古言", "v": "cate_439"}, {"n": "战神", "v": "cate_1038"}, {"n": "宫斗", "v": "cate_246"},
-                {"n": "仙侠", "v": "cate_1013"}, {"n": "权谋", "v": "cate_1047"}, {"n": "种田", "v": "cate_1180"},
-                {"n": "年代爱情", "v": "cate_1022"}, {"n": "悬疑", "v": "cate_165"}, {"n": "喜剧", "v": "cate_303"},
-                {"n": "青春", "v": "cate_297"}, {"n": "志怪", "v": "cate_1027"}, {"n": "民国爱情", "v": "cate_1025"},
-                {"n": "灵异", "v": "cate_751"}, {"n": "家国情怀", "v": "cate_1235"}, {"n": "法律", "v": "cate_1136"},
-                {"n": "刑侦", "v": "cate_1148"}, {"n": "抗战", "v": "cate_504"}, {"n": "武侠", "v": "cate_1172"},
-                {"n": "民国传奇", "v": "cate_1240"}, {"n": "求生", "v": "cate_1168"}, {"n": "动作", "v": "cate_302"},
-                {"n": "科幻", "v": "cate_1092"}, {"n": "恐怖", "v": "cate_1219"}, {"n": "商战", "v": "cate_1225"},
+        # 二级筛选：漫剧/AI剧 共用一套子分类（creative 等 slug），真人剧独立一套。
+        # v 存子分类 slug，categoryContent 拼 /category/<slug>/<v> 抓子页。
+        manju_ai_filters = [
+            {"key": "sub", "name": "分类", "value": [
+                {"n": "全部", "v": ""},
+                {"n": "脑洞", "v": "creative"}, {"n": "玄幻", "v": "fantasy"},
+                {"n": "剧情", "v": "drama"}, {"n": "末世", "v": "apocalypse"},
+                {"n": "豪门", "v": "wealthy-family"}, {"n": "奇幻", "v": "wonder"},
+                {"n": "科幻", "v": "sci-fi"}, {"n": "冒险", "v": "adventure"},
             ]},
-            {"key": "background", "name": "背景", "value": [
-                {"n": "全部", "v": ""}, {"n": "现代", "v": "cate_757"}, {"n": "都市", "v": "cate_1"},
-                {"n": "古代", "v": "cate_758"}, {"n": "乡村", "v": "cate_11"}, {"n": "年代", "v": "cate_79"},
-                {"n": "架空", "v": "cate_452"}, {"n": "职场", "v": "cate_127"}, {"n": "民国", "v": "cate_390"},
-                {"n": "校园", "v": "cate_4"}, {"n": "宫廷", "v": "cate_1153"}, {"n": "荒岛", "v": "cate_1162"},
-            ]},
-            {"key": "setting", "name": "设定", "value": [
-                {"n": "全部", "v": ""}, {"n": "打脸虐渣", "v": "cate_1051"}, {"n": "大男主", "v": "cate_1207"},
-                {"n": "大女主", "v": "cate_760"}, {"n": "马甲", "v": "cate_266"}, {"n": "重生", "v": "cate_36"},
-                {"n": "穿越", "v": "cate_37"}, {"n": "系统", "v": "cate_19"}, {"n": "先婚后爱", "v": "cate_265"},
-                {"n": "家长里短", "v": "cate_862"}, {"n": "小人物", "v": "cate_1010"}, {"n": "破镜重圆", "v": "cate_475"},
-                {"n": "神豪", "v": "cate_20"}, {"n": "豪门", "v": "cate_936"}, {"n": "强者回归", "v": "cate_1045"},
-                {"n": "异能", "v": "cate_598"}, {"n": "虐恋", "v": "cate_1008"}, {"n": "传承觉醒", "v": "cate_1007"},
-                {"n": "医生", "v": "cate_487"}, {"n": "强强联合", "v": "cate_1049"}, {"n": "赘婿逆袭", "v": "cate_1044"},
-                {"n": "甜宠", "v": "cate_96"}, {"n": "娱乐圈", "v": "cate_43"}, {"n": "神医", "v": "cate_26"},
-                {"n": "青梅竹马", "v": "cate_387"}, {"n": "姐弟恋", "v": "cate_762"}, {"n": "玄学", "v": "cate_929"},
-                {"n": "追妻火葬场", "v": "cate_616"}, {"n": "业界精英", "v": "cate_1293"}, {"n": "一见钟情", "v": "cate_477"},
-                {"n": "福宝", "v": "cate_1291"}, {"n": "捞偏门", "v": "cate_1287"}, {"n": "反派主角", "v": "cate_1042"},
-                {"n": "萌宠", "v": "cate_428"}, {"n": "双向救赎", "v": "cate_1200"}, {"n": "方言", "v": "cate_1255"},
-                {"n": "白月光", "v": "cate_615"}, {"n": "灵魂互换", "v": "cate_831"}, {"n": "病娇", "v": "cate_380"},
-                {"n": "暴富", "v": "cate_1191"}, {"n": "黑道", "v": "cate_826"}, {"n": "丧尸", "v": "cate_582"},
-                {"n": "特种兵", "v": "cate_375"},
-            ]},
-            {"key": "time", "name": "时间", "value": [
-                {"n": "全部", "v": ""}, {"n": "7天内上新", "v": "1"}, {"n": "14天内上新", "v": "2"},
-                {"n": "30天内上新", "v": "3"}, {"n": "90天内上新", "v": "4"},
+            {"key": "sort", "name": "排序", "value": [
+                {"n": "热度", "v": "1"}, {"n": "上新", "v": "2"},
             ]},
         ]
-        filter_dict = {c["type_id"]: groups for c in class_list}
+        real_filters = [
+            {"key": "sub", "name": "分类", "value": [
+                {"n": "全部", "v": ""},
+                {"n": "爱情", "v": "romance"}, {"n": "年代", "v": "period"},
+                {"n": "逆袭", "v": "comeback"}, {"n": "传奇", "v": "legend"},
+                {"n": "成长", "v": "growth"}, {"n": "家庭", "v": "family"},
+                {"n": "家族", "v": "clan"}, {"n": "萌宝", "v": "cute-kids"},
+                {"n": "悬疑", "v": "suspense"}, {"n": "惊悚", "v": "thriller"},
+                {"n": "恐怖", "v": "horror"}, {"n": "志怪", "v": "supernatural"},
+                {"n": "古装", "v": "costume"}, {"n": "玄幻", "v": "fantasy"},
+                {"n": "奇幻", "v": "wonder"}, {"n": "都市", "v": "urban"},
+                {"n": "青春", "v": "youth"}, {"n": "喜剧", "v": "comedy"},
+                {"n": "科幻", "v": "sci-fi"}, {"n": "灾难", "v": "disaster"},
+                {"n": "动作冒险", "v": "action-adventure"}, {"n": "战争", "v": "war"},
+                {"n": "综艺", "v": "variety"}, {"n": "剧情", "v": "drama"},
+            ]},
+            {"key": "sort", "name": "排序", "value": [
+                {"n": "热度", "v": "1"}, {"n": "上新", "v": "2"},
+            ]},
+        ]
+        recommend_filters = [
+            {"key": "time", "name": "上新时间", "value": [
+                {"n": "全部", "v": ""}, {"n": "7天内", "v": "1"},
+                {"n": "14天内", "v": "2"}, {"n": "30天内", "v": "3"},
+                {"n": "90天内", "v": "4"},
+            ]},
+            {"key": "sort", "name": "排序", "value": [
+                {"n": "热度", "v": "1"}, {"n": "上新", "v": "2"},
+            ]},
+        ]
+        filter_dict = {
+            "manju": manju_ai_filters,
+            "ai": manju_ai_filters,
+            "real": real_filters,
+        }
         home_list = []
         try:
             data = _data(SITE + "/")
@@ -4087,39 +4184,90 @@ class Spider(_BaseSpider):
             page = max(1, int(pg))
         except (TypeError, ValueError):
             page = 1
-        # 漫剧 / AI漫剧：官网搜索不支持真翻页，多关键词轮换 + 跨页去重
-        if tid in ("comic", "manju", "漫剧"):
-            try:
-                p = _category_loader(page, {"tab": "2", "sort_type": "1"})
-                rows = p.get("recommendList") or []
-                if rows:
-                    page_data = p.get("pagination") or {}
-                    # tab=2 池子做跨页去重（不同 sort 顺序会撞车）
-                    pagecount = int(page_data.get("totalPages") or 1)
-                    if page > pagecount:
-                        return _search_by_keywords(_MANJU_KEYWORDS, page - pagecount, seen_key="manju_tab2_pool")
-                    with _KW_SEEN_LOCK:
-                        seen = _KW_ROTATE_SEEN.setdefault("manju_tab2_pool", set())
-                    out = []
-                    for x in rows:
-                        it = _cat_item(x)
-                        vid = str(it.get("vod_id") or "")
-                        if vid and vid not in seen:
-                            seen.add(vid)
-                            out.append(it)
-                    if out:
-                        return {
-                            "page": page,
-                            "pagecount": pagecount,
-                            "limit": len(out),
-                            "total": int(page_data.get("total") or len(out)),
-                            "list": out,
-                        }
-            except Exception:
-                pass
-            return _search_by_keywords(_MANJU_KEYWORDS, page, seen_key="manju_kw_pool")
-        if tid in ("ai_comic", "ai_manju", "AI漫剧", "ai漫剧"):
-            return _search_by_keywords(_AI_MANJU_KEYWORDS, page, seen_key="ai_manju_pool")
+
+        # ── 热播榜：/rank/hot-<slug>，SSR 直出 HTML，官网原生 ?page=N 翻页
+        #    （实测 1~5 页每页 20 条，第 6 页 404 返回空即停止加载）──
+        rank_slug = {
+            "rank_manju": "hot-comic-drama",
+            "rank_ai": "hot-ai-drama",
+            "rank_real": "hot-real-drama",
+        }.get(tid)
+        if rank_slug:
+            rows = _parse_rank_page(SITE + "/rank/" + rank_slug, page)
+            if page > 1 and not rows:
+                # 已翻到官网榜单尽头（404），告诉壳没有更多页
+                return {"page": page, "pagecount": page - 1, "limit": 0, "total": (page - 1) * 20, "list": []}
+            return {
+                "page": page,
+                "pagecount": 5,
+                "limit": len(rows),
+                "total": 100,
+                "list": rows,
+            }
+
+        # ── 三大分类：官网 slug 体系，/category/<type>[/<sub>]?page=N，
+        #    官方 SSR 自带翻页（totalPages≈34）与二级筛选路由 ──
+        slug_map = {"manju": "comic-drama", "ai": "ai-drama", "real": "real-drama"}
+        slug = slug_map.get(tid)
+
+        # 旧 type_id 兼容（配置缓存未刷新时）
+        if not slug:
+            legacy = {
+                "comic": "comic-drama", "manju_kw": "comic-drama",
+                "ai_comic": "ai-drama", "ai_manju": "ai-drama",
+            }
+            slug = legacy.get(tid)
+
+        if slug:
+            sub = ""
+            time_v = ""
+            sort_v = "1"
+            if isinstance(extend, str) and extend:
+                try:
+                    extend = json.loads(extend)
+                except Exception:
+                    extend = {}
+            if isinstance(extend, dict):
+                sub = str(extend.get("sub") or "").strip()
+                time_v = str(extend.get("time") or "").strip()
+                sort_v = str(extend.get("sort") or "1").strip() or "1"
+                if sort_v not in ("1", "2"):
+                    sort_v = "1"
+            # 官网 slug URL 只认 page 与子分类路径，多余参数会 404；
+            # 排序/上新时间走 _category_loader 的 API 侧 query 实现。
+            url = SITE + "/category/" + slug + (("/" + sub) if sub else "")
+            q = {"page": str(page)}
+            data = _data(url + ("?page=%d" % page if page > 1 else ""))
+            pg_data = (data.get("loaderData") or {}).get("category_$") or {}
+            rows = pg_data.get("recommendList") or []
+            page_data = pg_data.get("pagination") or {}
+            if not rows and sub:
+                # 子分类页偶发空 → 回退主分类页
+                data = _data(SITE + "/category/" + slug + ("?page=%d" % page if page > 1 else ""))
+                pg_data = (data.get("loaderData") or {}).get("category_$") or {}
+                rows = pg_data.get("recommendList") or []
+                page_data = pg_data.get("pagination") or {}
+            if rows:
+                pagecount = int(page_data.get("totalPages") or 1)
+                total = int(page_data.get("total") or len(rows))
+                items = [_cat_item(x) for x in rows]
+                # 上新排序（sort=2）在页面层无参数：客户端按时间字段排序兜底
+                if sort_v == "2":
+                    items = sorted(
+                        items,
+                        key=lambda it: _int((it.get("vod_remarks") or "")),
+                        reverse=True,
+                    )
+                return {
+                    "page": page,
+                    "pagecount": pagecount,
+                    "limit": len(items),
+                    "total": total,
+                    "list": items,
+                }
+            return {"page": page, "pagecount": 1, "limit": 0, "total": 0, "list": []}
+
+        # ── 推荐（旧 all/latest/hot/male/female 一并路由到推荐 tab 逻辑）──
         q = {"tab": "1", "sort_type": "1"}
         if tid == "latest":
             q["sort_type"] = "2"

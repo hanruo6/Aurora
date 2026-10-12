@@ -18,6 +18,38 @@
           --hot:#fca5a5;      /* 热度 */
           --gold:#fcd34d;
         }
+        /* ═══ 浅色主题:仅覆盖变量,其余样式全部复用 ═══ */
+        :root[data-theme="light"]{
+          --bg:#eef1f7;
+          --panel:#ffffff;
+          --panel2:#f3f5fb;
+          --line:rgba(15,23,42,.1);
+          --text:#1c2230;
+          --dim:#64748b;
+          --acc:#0d9488;      /* 青(调深,白底可读) */
+          --acc2:#6366f1;     /* 靛(调深) */
+          --hot:#e11d48;
+          --gold:#d97706;
+        }
+        /* 浅色下的局部修正:时钟渐变首色不能用白 */
+        /* 注意用 background-image 而非 background 简写,否则会重置 background-clip:text 导致时钟变实心块 */
+        :root[data-theme="light"] .clockbox .tm{background-image:linear-gradient(90deg,#334155,var(--acc))}
+        /* 浅色下背景流星/图标雨是亮色,白底看不清→降透明度弱化 */
+        :root[data-theme="light"] #sky{opacity:.25}
+        :root[data-theme="light"] .grain{opacity:.03}
+        :root[data-theme="light"] ::-webkit-scrollbar-thumb{background:#cbd5e1}
+
+        /* ═══ 主题切换按钮(页面左上角,随页面滚动) ═══ */
+        .theme-toggle{
+          position:absolute;top:14px;left:14px;z-index:50;
+          width:34px;height:34px;border-radius:10px;cursor:pointer;
+          display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;
+          background:var(--panel);border:1px solid var(--line);color:var(--text);
+          box-shadow:0 3px 12px rgba(0,0,0,.26);transition:transform .25s,border-color .25s,background .25s;
+          -webkit-tap-highlight-color:transparent;user-select:none;
+        }
+        .theme-toggle:hover{transform:scale(1.08);border-color:var(--acc)}
+        .theme-toggle:active{transform:scale(.92)}
         *{margin:0;padding:0;box-sizing:border-box}
         html{scroll-behavior:smooth}
         body{
@@ -93,7 +125,9 @@
         .searchbar .skey{
           flex-shrink:0;font-size:11px;color:var(--dim);border:1px solid var(--line);border-radius:7px;
           padding:5px 10px;letter-spacing:1px;background:var(--panel2);white-space:nowrap;
+          cursor:pointer;user-select:none;transition:.2s;-webkit-tap-highlight-color:transparent;
         }
+        .searchbar .skey:hover,.searchbar .skey:active{color:#0b0d12;background:linear-gradient(135deg,var(--acc),var(--acc2));border-color:transparent}
         
         /* ═══ 热门横榜(单击直达) ═══ */
         .sec{margin-top:44px}
@@ -158,8 +192,9 @@
           position:relative;display:flex;align-items:center;gap:9px;padding:10px 12px;
           background:var(--panel);border:1px solid var(--line);border-radius:12px;
           text-decoration:none;color:var(--text);transition:.2s;overflow:hidden;
+          box-shadow:0 2px 10px rgba(0,0,0,.25), 0 0 0 1px rgba(165,180,252,.04); /* 常驻淡光晕+立体感 */
         }
-        .card:hover{border-color:rgba(165,180,252,.45);background:var(--panel2);transform:translateY(-2px)}
+        .card:hover{border-color:rgba(165,180,252,.45);background:var(--panel2);transform:translateY(-2px);box-shadow:0 8px 24px rgba(165,180,252,.12)}
         .card .ic{
           flex-shrink:0;width:34px;height:34px;border-radius:10px;overflow:hidden;
           display:flex;align-items:center;justify-content:center;font-size:17px;
@@ -201,7 +236,7 @@
         
         /* 复制提示 */
         .toast{
-          position:fixed;top:30px;left:50%;transform:translateX(-50%) translateY(-70px);z-index:99;
+          position:fixed;top:30px;left:50%;transform:translateX(-50%) translateY(calc(-100% - 60px));z-index:99;
           display:flex;align-items:center;gap:9px;padding:11px 24px;border-radius:11px;
           font-size:13px;letter-spacing:1px;color:#0b0d12;font-weight:700;
           background:linear-gradient(90deg,var(--acc),var(--acc2));
@@ -213,7 +248,7 @@
         /* 移动端:仍保持双列,间距压缩,砍掉尾部按钮腾空间 */
         @media(max-width:560px){
           .hot-grid,.cards{gap:8px}
-          .card .ds,.hot .hd{display:none}      /* 小屏藏描述 */
+          .card .ds,.hot .hd{font-size:9.5px;margin-top:2px}  /* 小屏显示描述:字号压小,单行省略(省略由主样式提供) */
           .card .go,.card .cp-tag{display:none} /* 小屏藏尾部按钮,标题优先 */
           .card{padding:9px 10px;gap:8px}
           .hot{padding:11px 12px;gap:9px}
@@ -223,9 +258,21 @@
           .hot-grid{grid-template-columns:1fr} /* 极窄屏热榜单列 */
         }
     </style>
+    <script>
+      /* 主题预设:在页面渲染前就定好,避免深浅切换时的白屏闪烁(FOUC) */
+      (function(){
+        try{
+          var t = localStorage.getItem('site-theme-v2');
+          if(!t) t = 'dark';   /* 默认深色,不跟随系统 */
+          if(t === 'light') document.documentElement.setAttribute('data-theme','light');
+        }catch(e){}
+      })();
+    </script>
 </head>
 
 <body>
+
+    <button class="theme-toggle" id="themeToggle" aria-label="切换深浅色" title="切换深浅色">🌙</button>
 
     <canvas id="sky"></canvas>
     <div class="grain"></div>
@@ -252,8 +299,8 @@
         <!-- 搜索条 -->
         <div class="searchbar">
             <span class="sic">⌕</span>
-            <input id="kw" placeholder="搜索全部资源,回车直达第一个结果...">
-            <span class="skey">Enter ↵</span>
+            <input id="kw" placeholder="输入关键词,点 Enter 开始搜索...">
+            <span class="skey" id="searchBtn" role="button" tabindex="0">Enter ↵</span>
         </div>
 
         <!-- 热门推荐 -->
@@ -325,7 +372,7 @@
         const SECTIONS = [
           {id:"api",icon:"📡",name:"接口配置",desc:"复制到空壳软件即可使用",items:[
             {name:"九月接口",desc:"仅限原版壳子",icon:"https://img.meituan.net/content/e165c7c8f6e8f9230b31867edfd63a4d14572.webp",link:"https://8815.kstore.vip/tvbox/wmz",act:"cp"}
-            
+           
          
           ]},
           {id:"soft",icon:"🎦",name:"影视壳子",desc:"安卓+TV专用",items:[
@@ -353,6 +400,7 @@
           ]},
           
           {id:"study",icon:"🌀",name:"其他分享",desc:"资源大杂烩",items:[
+           {name:"✈️机场推荐",desc:"体验不错",icon:"https://img.meituan.net/content/3876696a15e1789da04b9f03df90435a20426.webp",link:"https://edu.uodoo.bid/auth/register?code=9eTM1K4l",act:"go"},
             {name:"AI软件+资源",desc:"软件+资源合集，应有尽有",icon:"https://copyright.bdstatic.com/vcg/creative/1167b2c24138937519337a122777e019.jpg@h_1280",link:"https://pan.quark.cn/s/562075868583",act:"go"},
             {name:"电视TV专用软件",desc:"持续收集+更新",icon:"https://img0.baidu.com/it/u=3088588619,3095810707&fm=253&fmt=auto&app=138&f=JPEG?w=500&h=500",link:"https://pan.quark.cn/s/34732aee944e",act:"go"},
             {name:"短剧app合集",desc:"持续收集+更新",icon:"https://allweb-imgs.pkgdown.com/gamehome/i-2.gamehome.tv/2025/12/6/62ec5760-a175-4ec0-b83f-e0e2621e6bd4.png",link:"https://pan.quark.cn/s/cfb551fb44dd",act:"go"},
@@ -401,7 +449,10 @@
           const ctx = cv.getContext('2d');
           const space = document.getElementById('heroSpace');
           const DPR = Math.min(devicePixelRatio||1, 2);
-        
+
+          /* 尊重系统"减少动态效果"设置:直接熄火 */
+          if(matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
           /* 没配图标直接熄火 */
           if(!Array.isArray(RAIN_ICONS) || !RAIN_ICONS.length) return;
         
@@ -522,10 +573,12 @@
                 }
               }
             }
-            requestAnimationFrame(frame);
+            if(!document.hidden) requestAnimationFrame(frame);
           }
+          /* 标签页重新可见时续跑 */
+          document.addEventListener('visibilitychange',()=>{ if(!document.hidden && started) frame(); });
         })();
-        
+
         /* ═══ 时钟 ═══ */
         (function(){
           const wk=['周日','周一','周二','周三','周四','周五','周六'];
@@ -542,6 +595,8 @@
         (function(){
           const cv=document.getElementById('sky'),ctx=cv.getContext('2d');
           const DPR=Math.min(devicePixelRatio||1,2);
+          /* 尊重系统"减少动态效果"设置:直接熄火 */
+          if(matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
           let W,H,stars=[],meteors=[];
           const HUES=[170,225,205,190,45];
           const ANG=Math.PI-32*Math.PI/180, DX=Math.cos(ANG), DY=Math.sin(ANG);
@@ -594,12 +649,14 @@
               ctx.fillStyle=`hsla(${m.hue},100%,90%,${m.life})`;
               ctx.beginPath();ctx.arc(m.x,m.y,m.w*.9,0,7);ctx.fill();
             }
-            requestAnimationFrame(frame);
+            if(!document.hidden) requestAnimationFrame(frame);
           }
           for(let i=0;i<16;i++)spawn(true);
           frame();
+          /* 标签页重新可见时续跑 */
+          document.addEventListener('visibilitychange',()=>{ if(!document.hidden) frame(); });
         })();
-        
+
         /* ═══ 图标渲染器:链接→图片, 否则 emoji ═══ */
         function icHtml(r,fb){
           const c1=r.c1||'#2dd4bf', c2=r.c2||'#818cf8';
@@ -608,26 +665,17 @@
           return `<div class="ic" style="--c1:${c1};--c2:${c2}">${r.icon||fb}</div>`;
         }
         
-        /* ═══ 单击行为:go→跳转 cp→复制 ═══ */
-        function bindAct(el,r){
-          if(r.act==='cp'){
-            el.addEventListener('click',e=>{
-              e.preventDefault();
-              cp(r.link, `✓ 已复制:${r.name}`);
-            });
-          }
-        }
+        /* ═══ 单击行为已改为底部独立块的事件委托,这里不再逐个绑定 ═══ */
         
         /* ═══ 热门榜渲染(图标支持图片链接,排名是角标) ═══ */
         (function(){
           const g=document.getElementById('hotGrid');
           g.innerHTML=HOT.map((r,i)=>
-            `<a class="hot" href="${r.link}" ${r.act==='go'?'target="_blank"':''} data-k="${(r.name+r.desc).toLowerCase()}">
+            `<a class="hot" href="${r.link}" data-act="${r.act||'go'}" data-link="${r.link}" data-name="${r.name}" ${r.act==='go'?'target="_blank"':''} data-k="${(r.name+r.desc).toLowerCase()}">
               <div class="hic">${icHtml(r,'🔥')}<i class="rk">${i+1}</i></div>
               <div class="hi"><div class="hn">${r.name}</div><div class="hd">${r.desc||''}</div></div>
               <span class="hv"><i>🔥</i>${r.hot||''}</span>
             </a>`).join('');
-          [...g.children].forEach((el,i)=>bindAct(el,HOT[i]));
           document.getElementById('hotCnt').textContent=`${HOT.length} 个入口`;
         })();
         
@@ -649,60 +697,111 @@
               </div>
               <div class="cards">
                 ${s.items.map(r=>
-                  `<a class="card ${r.act==='cp'?'cp-card':''}" href="${r.link}" ${r.act==='go'?'target="_blank"':''} data-k="${(r.name+r.desc).toLowerCase()}">
+                  `<a class="card ${r.act==='cp'?'cp-card':''}" href="${r.link}" data-act="${r.act||'go'}" data-link="${r.link}" data-name="${r.name}" ${r.act==='go'?'target="_blank"':''} data-k="${(r.name+r.desc).toLowerCase()}">
                     ${icHtml(r,'📦')}
                     <div class="in"><div class="nm">${r.name}</div><div class="ds">${r.desc||''}</div></div>
                     ${r.act==='cp'?'<span class="cp-tag">复制</span>':'<span class="go">↗</span>'}
                   </a>`).join('')}
               </div>
             </section>`).join('');
-          SECTIONS.forEach(s=>{
-            const sec=document.getElementById('cat-'+s.id);
-            [...sec.querySelectorAll('.card')].forEach((el,i)=>bindAct(el,s.items[i]));
+        })();
+        /* ═══ 搜索逻辑已移至页面底部独立 <script> 块,避免主脚本中途异常时被一起中断 ═══ */
+        
+        
+        /* ═══ 复制 + 提示:已移至底部独立块,避免主脚本中途异常时失效 ═══ */
+    </script>
+
+    <!-- 主题切换 + 搜索:独立成块,即使上面的大脚本中途报错,这里也照常运行 -->
+    <script>
+        /* ─ 主题切换 ─ */
+        (function(){
+          var btn = document.getElementById('themeToggle');
+          var root = document.documentElement;
+          if(!btn) return;
+          /* 按钮图标:浅色态显示☀️(点了变深), 深色态显示🌙(点了变浅) */
+          function sync(){ btn.textContent = root.getAttribute('data-theme')==='light' ? '☀️' : '🌙'; }
+          sync();
+          btn.addEventListener('click',function(){
+            var toLight = root.getAttribute('data-theme')!=='light';
+            if(toLight) root.setAttribute('data-theme','light');
+            else root.removeAttribute('data-theme');
+            try{ localStorage.setItem('site-theme-v2', toLight?'light':'dark'); }catch(e){}
+            sync();
           });
         })();
-        
-        /* ═══ 搜索:过滤全部卡片,回车直达第一个结果 ═══ */
+
+        /* ─ 搜索:输入时不过滤,回车才执行搜索过滤 ─ */
         (function(){
-          const inp=document.getElementById('kw');
-          function allCards(){return [...document.querySelectorAll('.hot,.card')]}
-          inp.addEventListener('input',()=>{
-            const k=inp.value.trim().toLowerCase();
-            allCards().forEach(el=>{
-              el.style.display = (!k || el.dataset.k.includes(k)) ? '' : 'none';
+          var inp = document.getElementById('kw');
+          if(!inp) return;
+          function allCards(){ return [].slice.call(document.querySelectorAll('.hot,.card')); }
+          function runSearch(){
+            var k = inp.value.trim().toLowerCase();
+            allCards().forEach(function(el){
+              el.style.display = (!k || (el.dataset.k||'').indexOf(k)>-1) ? '' : 'none';
             });
-            // 区块自动隐藏(全空的分类)
-            document.querySelectorAll('.cat-sec').forEach(sec=>{
-              sec.style.display = [...sec.querySelectorAll('.card')].some(c=>c.style.display!=='none') ? '' : 'none';
+            /* 区块自动隐藏(卡片全空的分类) */
+            [].slice.call(document.querySelectorAll('.cat-sec')).forEach(function(sec){
+              var any = [].slice.call(sec.querySelectorAll('.card')).some(function(c){ return c.style.display!=='none'; });
+              sec.style.display = any ? '' : 'none';
             });
-            document.querySelector('.sec').style.display =
-              [...document.querySelectorAll('.hot')].some(c=>c.style.display!=='none') ? '' : 'none';
-          });
-          inp.addEventListener('keydown',e=>{
-            if(e.key==='Enter'){
-              const first=allCards().find(el=>el.style.display!=='none');
-              if(first) first.click();
+            var sec = document.querySelector('.sec');
+            if(sec){
+              var anyHot = [].slice.call(document.querySelectorAll('.hot')).some(function(c){ return c.style.display!=='none'; });
+              sec.style.display = anyHot ? '' : 'none';
+            }
+          }
+          /* 回车=执行搜索;清空输入后回车=恢复全部 */
+          inp.addEventListener('keydown',function(e){
+            if(e.key==='Enter' || e.keyCode===13){
+              e.preventDefault();
+              runSearch();
             }
           });
-        })();
-        
-        /* ═══ 复制 ═══ */
-        function cp(t,msg){
-          const ok=()=>toast(msg||'✓ 已复制到剪贴板');
-          if(navigator.clipboard&&window.isSecureContext) navigator.clipboard.writeText(t).then(ok).catch(fb);
-          else fb();
-          function fb(){
-            const ta=document.createElement('textarea');ta.value=t;ta.style.cssText='position:fixed;opacity:0';
-            document.body.appendChild(ta);ta.select();
-            try{document.execCommand('copy');ok()}catch(e){toast('复制失败,长按手动复制')}
-            ta.remove();
+          /* 点击页面上的 Enter 按钮,等效回车 */
+          var btn = document.getElementById('searchBtn');
+          if(btn){
+            btn.addEventListener('click',function(){ runSearch(); });
+            btn.addEventListener('keydown',function(e){
+              if(e.key==='Enter' || e.key===' ' || e.keyCode===13 || e.keyCode===32){
+                e.preventDefault(); runSearch();
+              }
+            });
           }
-        }
-        let tt;
+        })();
+
+        /* ─ 复制 + 提示 ─ */
+        var tt;
         function toast(m){
-          const el=document.getElementById('toast');el.textContent=m;el.classList.add('show');
-          clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('show'),1700);
+          var el=document.getElementById('toast'); if(!el) return;
+          el.textContent=m; el.classList.add('show');
+          clearTimeout(tt); tt=setTimeout(function(){ el.classList.remove('show'); },1700);
         }
+        function cp(t,msg){
+          var ok=function(){ toast(msg||'✓ 已复制到剪贴板'); };
+          function fb(){
+            var ta=document.createElement('textarea');
+            ta.value=t; ta.style.cssText='position:fixed;opacity:0';
+            document.body.appendChild(ta); ta.focus(); ta.select();
+            var done=false;
+            try{ done=document.execCommand('copy'); }catch(e){ done=false; }
+            ta.remove();
+            if(done) ok(); else toast('复制失败,长按手动复制');
+          }
+          if(navigator.clipboard && window.isSecureContext){
+            navigator.clipboard.writeText(t).then(ok).catch(fb);
+          } else { fb(); }
+        }
+
+        /* ─ 卡片点击:事件委托,act=cp 复制并阻止跳转 ─ */
+        document.addEventListener('click',function(e){
+          var a = e.target.closest ? e.target.closest('a.hot,a.card') : null;
+          if(!a) return;
+          if(a.getAttribute('data-act')==='cp'){
+            e.preventDefault();
+            cp(a.getAttribute('data-link'), '✓ 已复制:'+a.getAttribute('data-name'));
+          }
+        });
     </script>
 </body>
 

@@ -548,7 +548,8 @@
               ctx.rotate(Math.sin(d.rot)*.35);           // 轻轻摇摆,不是狂转
               ctx.globalAlpha = d.a;
               if(d.p.type === 'img'){
-                ctx.drawImage(d.p.el, -d.size/2, -d.size/2, d.size, d.size);
+                try{ ctx.drawImage(d.p.el, -d.size/2, -d.size/2, d.size, d.size); }
+                catch(_){ d.p.dead = true; }   /* 外链图运行时损坏→标死跳过,绝不让它拖垮整个动画循环 */
               } else {
                 ctx.font = `${d.size}px sans-serif`;
                 ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -668,7 +669,7 @@
         /* ═══ 单击行为已改为底部独立块的事件委托,这里不再逐个绑定 ═══ */
         
         /* ═══ 热门榜渲染(图标支持图片链接,排名是角标) ═══ */
-        (function(){
+        try{
           const g=document.getElementById('hotGrid');
           g.innerHTML=HOT.map((r,i)=>
             `<a class="hot" href="${r.link}" data-act="${r.act||'go'}" data-link="${r.link}" data-name="${r.name}" ${r.act==='go'?'target="_blank"':''} data-k="${(r.name+r.desc).toLowerCase()}">
@@ -677,16 +678,16 @@
               <span class="hv"><i>🔥</i>${r.hot||''}</span>
             </a>`).join('');
           document.getElementById('hotCnt').textContent=`${HOT.length} 个入口`;
-        })();
+        }catch(e){ console.warn('[hot]',e); }
         
         /* ═══ 锚点 ═══ */
-        (function(){
+        try{
           document.getElementById('anchors').innerHTML =
             SECTIONS.map(s=>`<a class="anchor" href="#cat-${s.id}">${s.icon} ${s.name}</a>`).join('');
-        })();
+        }catch(e){ console.warn('[anchors]',e); }
         
         /* ═══ 分类区块渲染 ═══ */
-        (function(){
+        try{
           const box=document.getElementById('catSecs');
           box.innerHTML=SECTIONS.map(s=>
             `<section class="cat-sec" id="cat-${s.id}">
@@ -704,7 +705,7 @@
                   </a>`).join('')}
               </div>
             </section>`).join('');
-        })();
+        }catch(e){ console.warn('[cat]',e); }
         /* ═══ 搜索逻辑已移至页面底部独立 <script> 块,避免主脚本中途异常时被一起中断 ═══ */
         
         

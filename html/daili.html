@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>♡｡Eternity.✨</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, "PingFang SC", sans-serif;
+    color: #fff;
+    padding: 16px;
+    min-height: 100vh;
+    /* 玻璃拟物底色:深靛蓝渐变,给光球当舞台 */
+    background: linear-gradient(160deg, #141228 0%, #1c1638 45%, #10102a 100%);
+    overflow-x: hidden;
+  }
+
+  /* ═══ 飘浮光球:2个彩色模糊光斑缓慢漂移,玻璃折射的"光源" ═══ */
+  .orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: .5;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .orb-1 {
+    width: 320px; height: 320px;
+    background: radial-gradient(circle, #ff6ec4 0%, transparent 70%);
+    top: -80px; left: -60px;
+    animation: drift1 26s ease-in-out infinite alternate;
+  }
+  .orb-2 {
+    width: 380px; height: 380px;
+    background: radial-gradient(circle, #4adeff 0%, transparent 70%);
+    bottom: -120px; right: -100px;
+    animation: drift2 32s ease-in-out infinite alternate;
+  }
+  .orb-3 {
+    width: 260px; height: 260px;
+    background: radial-gradient(circle, #a78bfa 0%, transparent 70%);
+    top: 40%; left: 55%;
+    opacity: .35;
+    animation: drift3 38s ease-in-out infinite alternate;
+  }
+  @keyframes drift1 {
+    0%   { transform: translate(0,0) scale(1); }
+    100% { transform: translate(120px, 80px) scale(1.15); }
+  }
+  @keyframes drift2 {
+    0%   { transform: translate(0,0) scale(1.1); }
+    100% { transform: translate(-140px, -90px) scale(1); }
+  }
+  @keyframes drift3 {
+    0%   { transform: translate(0,0); }
+    100% { transform: translate(-80px, -60px) scale(1.2); }
+  }
+
+  /* 尊重系统"减少动态效果" */
+  @media (prefers-reduced-motion: reduce) {
+    .orb-1,.orb-2,.orb-3 { animation: none; }
+  }
+
+  /* 内容层压在光球上面 */
+  .topbar, #app { position: relative; z-index: 1; }
+
+  /* ═══ 顶部标题栏:渐变文字,不再是纯白糊字 ═══ */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    max-width: 480px;
+    margin: 8px auto 20px;
+    font-size: 22px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    background: linear-gradient(90deg, #ffd6f2, #c7b8ff, #9beaff, #ffd6f2);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shimmer 8s linear infinite;
+  }
+  @keyframes shimmer {
+    to { background-position: 200% center; }
+  }
+
+  /* ═══ 分组容器:高透玻璃,顶部高光折边 ═══ */
+  .group {
+    background: linear-gradient(145deg, rgba(255,255,255,0.14), rgba(255,255,255,0.05));
+    backdrop-filter: blur(18px) saturate(1.4);
+    -webkit-backdrop-filter: blur(18px) saturate(1.4);
+    border: 1px solid rgba(255,255,255,0.22);
+    border-top-color: rgba(255,255,255,0.45); /* 顶部亮边=玻璃反光 */
+    border-radius: 20px;
+    padding: 16px;
+    max-width: 480px;
+    margin: 0 auto 20px;
+    box-shadow:
+      0 8px 32px rgba(0,0,0,0.35),
+      inset 0 1px 0 rgba(255,255,255,0.2);
+  }
+
+  /* 分组标题 */
+  .group-header {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    font-size: 19px;
+    font-weight: bold;
+    cursor: pointer;
+    padding: 6px 0 14px;
+    letter-spacing: 2px;
+  }
+  .group-header .arrow {
+    position: absolute;
+    right: 8px;
+    color: #ffd6f2;
+    transition: transform 0.3s;
+  }
+  .group.collapsed .arrow { transform: rotate(180deg); }
+  .group.collapsed .body { display: none; }
+
+  /* ═══ iOS 胶囊分段控制器:滑块在背后滑,不是换色 ═══ */
+  .tabs {
+    position: relative;
+    display: flex;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    padding: 4px;
+    margin-bottom: 16px;
+  }
+  .tab {
+    position: relative;
+    z-index: 1;
+    flex: 1;
+    text-align: center;
+    padding: 10px 0;
+    color: rgba(255,255,255,0.65);
+    font-size: 14px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: color 0.25s;
+    border-radius: 11px;
+  }
+  .tab.active { color: #fff; }
+  /* 滑块本体:JS 控制 transform 平移过去 */
+  .tabs .slider {
+    position: absolute;
+    top: 4px; bottom: 4px; left: 4px;
+    border-radius: 11px;
+    background: linear-gradient(135deg, #ff6ec4, #7873f5);
+    box-shadow: 0 4px 14px rgba(255,110,196,0.45);
+    transition: all 0.3s cubic-bezier(0.34, 1.3, 0.5, 1);
+  }
+
+  /* 平台面板 */
+  .panel { display: none; }
+  .panel.active { display: block; animation: fadeUp 0.28s ease; }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* 卡片列表 */
+  .list { display: flex; flex-direction: column; gap: 10px; }
+
+  /* ═══ 单卡片:玻璃条 + 首字母渐变头像 ═══ */
+  .item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 14px;
+    padding: 12px 16px;
+    color: #fff;
+    text-decoration: none;
+    transition: background 0.2s, transform 0.2s, border-color 0.2s;
+  }
+  .item:hover {
+    background: rgba(255,255,255,0.16);
+    border-color: rgba(255,255,255,0.35);
+    transform: translateY(-1px);
+  }
+  /* 头像:取名字首字母,渐变色按 index 循环 */
+  .item .avatar {
+    width: 38px; height: 38px;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 11px;
+    font-size: 17px;
+    font-weight: bold;
+    color: rgba(255,255,255,0.95);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    overflow: hidden;
+  }
+  /* 图标图片模式:icon填了链接时显示 */
+  .item .avatar img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .item .name {
+    flex: 1;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .item .chevron { color: rgba(255,255,255,0.5); font-size: 18px; }
+  .item:hover .chevron { color: #ffd6f2; }
+</style>
+</head>
+<body>
+
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <div class="topbar">
+    💯九月小小屋🌱
+  </div>
+
+  <!-- 分组会由 JS 根据下面的配置自动生成 -->
+  <div id="app"></div>
+
+<script>
+  /* ============================================
+     配置区：只改这里就能增删平台 / 软件
+     ============================================ */
+  const groups = [
+    {
+      title: "代理软件",
+      collapsed: false,
+      platforms: [
+        {
+          os: "WINDOWS",
+          apps: [
+            { name: "v2rayN",          url: "https://github.com/2dust/v2rayN", icon: "https://github.com/2dust/v2rayN/raw/master/v2rayN.ico" },
+            { name: "Hiddify",         url: "https://github.com/hiddify/hiddify-next" },
+            { name: "FlClash",         url: "https://github.com/chen08209/FlClash" },
+            { name: "mihomo-party",    url: "https://github.com/mihomo-party-org/mihomo-party" },
+            { name: "Clash Verge Rev", url: "https://github.com/clash-verge-rev/clash-verge-rev" },
+            { name: "Clashmi",         url: "#" },
+            { name: "FlyClash",        url: "#" },
+            { name: "Karing",          url: "https://github.com/KaringX/karing" },
+          ]
+        },
+        {
+          os: "ANDROID",
+          apps: [
+            { name: "v2rayNG",   url: "https://github.com/2dust/v2rayNG" },
+            { name: "ClashMeta", url: "https://github.com/MetaCubeX/ClashMetaForAndroid" },
+            { name: "FlClash",   url: "https://github.com/chen08209/FlClash" },
+            { name: "Clashmi",   url: "#" },
+            { name: "Hiddify",   url: "https://github.com/hiddify/hiddify-next" },
+            { name: "NekoBox",   url: "https://github.com/MatsuriDayo/NekoBoxForAndroid" },
+            { name: "FlyClash",  url: "#" },
+            { name: "Karing",    url: "https://github.com/KaringX/karing" },
+            { name: "Bettbox",   url: "#" },
+            { name: "sing-box",  url: "https://github.com/SagerNet/sing-box" },
+          ]
+        },
+        {
+          os: "IOS",
+          apps: [
+            { name: "Surge",         url: "https://nssurge.com/" },
+            { name: "Shadowrocket",  url: "https://apps.apple.com/app/shadowrocket/id932747118" },
+            { name: "Stash",         url: "https://stash.ws/" },
+            { name: "Hiddify",       url: "https://github.com/hiddify/hiddify-next" },
+            { name: "Loon",          url: "https://apps.apple.com/app/loon/id1373567447" },
+            { name: "Egern",         url: "https://egern.app/" },
+            { name: "Clashmi",       url: "#" },
+            { name: "Karing",        url: "https://github.com/KaringX/karing" },
+            { name: "Quantumult X",  url: "https://apps.apple.com/app/quantumult-x/id1443988620" },
+          ]
+        }
+      ]
+    }
+    // 想加更多分组，在这里继续追加 { title, platforms } 对象即可
+  ];
+
+  /* ============================================
+     渲染逻辑：一般不用改
+     ============================================ */
+  const app = document.getElementById("app");
+
+  /* 头像渐变色板:按序号循环取色 */
+  const AVATAR_GRADS = [
+    ["#ff6ec4", "#7873f5"],
+    ["#42e695", "#3bb2ff"],
+    ["#ffd86f", "#ff9a5c"],
+    ["#9beaff", "#7873f5"],
+    ["#c7b8ff", "#ff6ec4"],
+    ["#00c9a7", "#4adeff"],
+  ];
+
+  groups.forEach((group, gi) => {
+    const groupEl = document.createElement("div");
+    groupEl.className = "group" + (group.collapsed ? " collapsed" : "");
+
+    // 标题
+    const header = document.createElement("div");
+    header.className = "group-header";
+    header.innerHTML = `${group.title}<span class="arrow">˄</span>`;
+    header.addEventListener("click", () => groupEl.classList.toggle("collapsed"));
+    groupEl.appendChild(header);
+
+    // 内容主体
+    const body = document.createElement("div");
+    body.className = "body";
+
+    // 平台切换标签(带滑块)
+    const tabs = document.createElement("div");
+    tabs.className = "tabs";
+    const slider = document.createElement("div");
+    slider.className = "slider";
+    tabs.appendChild(slider);
+
+    // 各平台面板
+    const panels = [];
+
+    group.platforms.forEach((platform, pi) => {
+      // 标签按钮
+      const tab = document.createElement("div");
+      tab.className = "tab" + (pi === 0 ? " active" : "");
+      tab.textContent = platform.os;
+      tabs.appendChild(tab);
+
+      // 对应面板
+      const panel = document.createElement("div");
+      panel.className = "panel" + (pi === 0 ? " active" : "");
+
+      const list = document.createElement("div");
+      list.className = "list";
+      platform.apps.forEach((appItem, ai) => {
+        const a = document.createElement("a");
+        a.className = "item";
+        a.href = appItem.url;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        const grad = AVATAR_GRADS[ai % AVATAR_GRADS.length];
+        /* icon 填了链接→图片；没填→首字母渐变头像；图片加载失败→回落首字母 */
+        const avatarHTML = appItem.icon
+          ? `<img src="${appItem.icon}" alt="" loading="lazy"
+               onerror="this.parentElement.style.background='linear-gradient(135deg,${grad[0]},${grad[1]})';this.remove();">`
+          : "";
+        a.innerHTML =
+          `<span class="avatar" style="background:linear-gradient(135deg,${grad[0]},${grad[1]})">${appItem.icon ? "" : appItem.name.charAt(0).toUpperCase()}${avatarHTML}</span>` +
+          `<span class="name">${appItem.name}</span>` +
+          `<span class="chevron">›</span>`;
+        list.appendChild(a);
+      });
+      panel.appendChild(list);
+
+      // 点击标签切换:滑块跟着平移过去
+      tab.addEventListener("click", () => {
+        tabs.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+        panels.forEach(p => p.classList.remove("active"));
+        tab.classList.add("active");
+        panel.classList.add("active");
+        /* 滑块位置=当前激活tab的offsetLeft,宽度=tab宽度 */
+        slider.style.left = (tab.offsetLeft) + "px";
+        slider.style.width = tab.offsetWidth + "px";
+      });
+
+      panels.push(panel);
+    });
+
+    // 初始滑块定位(等渲染完再量,不然宽度是0)
+    requestAnimationFrame(() => {
+      const active = tabs.querySelector(".tab.active");
+      if(active){
+        slider.style.left = active.offsetLeft + "px";
+        slider.style.width = active.offsetWidth + "px";
+      }
+    });
+
+    body.appendChild(tabs);
+    panels.forEach(p => body.appendChild(p));
+
+    groupEl.appendChild(body);
+    app.appendChild(groupEl);
+  });
+</script>
+
+</body>
+</html>

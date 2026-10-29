@@ -187,6 +187,23 @@
   .top-tabs { margin: 0 0 16px; }
   .top-tabs button { padding: 12px 6px; font-size: 14px; }
   footer { text-align: center; margin-top: 22px; font-size: 11px; color: #46536b; line-height: 1.8; }
+
+  /* ── 加密后文本容器 ── */
+  .txt-out { margin-top: 14px; }
+  .txt-out-head {
+    font-size: 12px; color: var(--txt-dim); font-weight: 600;
+    margin-bottom: 7px; display: flex; align-items: center; gap: 6px;
+  }
+  .txt-out textarea {
+    width: 100%; min-height: 130px; max-height: 260px; resize: vertical;
+    padding: 11px; background: rgba(10, 14, 22, .6); color: #c9f0ff;
+    border: 1px solid var(--line-strong); border-radius: 11px;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11px; line-height: 1.5; word-break: break-all; outline: none;
+  }
+  .txt-out textarea:focus { border-color: var(--accent); }
+  .copy-btn { margin-top: 10px; padding: 11px; font-size: 13px; }
+  .copy-btn.copied { background: linear-gradient(135deg, #17954e, #22b862); box-shadow: 0 6px 20px rgba(34,184,98,.28); }
 </style>
 </head>
 <body>
@@ -290,7 +307,12 @@
       <div class="res-head"><span class="dot"></span><span>生成完成</span></div>
       <div class="stat" id="tstat"></div>
       <div class="note">✓ 上传为 .json / .txt 后缀均可，壳按 <b>通用加密</b> 标记识别解码<br>⚠ 人打开链接会看到 base64 文本，无图片伪装效果</div>
-      <a class="dl" id="tdlBtn" download="embed.txt">💾 保存加密文本</a>
+      <div class="txt-out" id="txtOut" style="display:none">
+        <div class="txt-out-head">加密后文本</div>
+        <textarea id="txtContent" readonly spellcheck="false"></textarea>
+        <button class="btn copy-btn" id="tcopy">📋 复制全文</button>
+      </div>
+      <a class="dl" id="tdlBtn" download="lzxw.txt">💾 保存加密文本</a>
       <button class="btn ghost" id="treExtract">🔍 自检 · 反提取验证</button>
       <div class="stat" id="tverify"></div>
     </div>
@@ -458,11 +480,35 @@ $('tgo').onclick = () => {
     `<span class="ok">✓ 壳按 通用加密 标记识别，与图片版同一解码逻辑</span>`;
   const dl = $('tdlBtn');
   dl.href = url;
-  dl.download = 'embed.txt';
+  dl.download = 'lzxw.txt';
+  // 加密后文本容器 + 复制按钮
+  $('txtContent').value = 'YmFzZTY0**' + b64;
+  $('txtOut').style.display = 'block';
+  const cp = $('tcopy');
+  cp.classList.remove('copied');
+  cp.textContent = '📋 复制全文';
   $('tresult').style.display = 'block';
   $('tverify').textContent = '';
   dl._out = out; dl._json = json;
   $('tresult').scrollIntoView({ behavior: 'smooth' });
+};
+
+// 复制全文按钮
+$('tcopy').onclick = async () => {
+  const ta = $('txtContent');
+  const btn = $('tcopy');
+  try {
+    ta.select(); ta.setSelectionRange(0, 999999999);
+    const ok = document.execCommand('copy');
+    if (!ok && navigator.clipboard) await navigator.clipboard.writeText(ta.value);
+    btn.textContent = '✓ 已复制';
+    btn.classList.add('copied');
+  } catch (e) {
+    // 兜底：手动全选让用户长按复制
+    ta.select(); ta.setSelectionRange(0, 999999999);
+    btn.textContent = '⚠ 请长按文本手动复制';
+  }
+  setTimeout(() => { btn.textContent = '📋 复制全文'; btn.classList.remove('copied'); }, 2000);
 };
 
 // 文本版自检：直接从内存里的生成物反提取

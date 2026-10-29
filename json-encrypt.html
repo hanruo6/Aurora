@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>图片 JSON 隐加密</title>
+<title>图片 JSON文本 加密</title>
 <style>
   :root {
     --bg: #0b0e14;
@@ -184,6 +184,8 @@
   a.dl:active { transform: scale(.98); }
   #verify { margin-top: 10px; }
 
+  .top-tabs { margin: 0 0 16px; }
+  .top-tabs button { padding: 12px 6px; font-size: 14px; }
   footer { text-align: center; margin-top: 22px; font-size: 11px; color: #46536b; line-height: 1.8; }
 </style>
 </head>
@@ -194,14 +196,21 @@
       <img src="https://img.meituan.net/content/e165c7c8f6e8f9230b31867edfd63a4d14572.webp" alt="logo"
            onerror="this.style.display='none'">
     </div>
-    <h1>公众号:九月小小屋 · json图片加密</h1>
+    <h1>公众号: 九月小小屋 json图片加密</h1>
     <div class="sub">
-      <span class="chip">保持原格式 <b>PNG / WebP / JPG</b></span>
-      <span class="chip">tvbox · <b>影视系列专用</b></span>
-      <span class="chip">GitLab <b>任意后缀</b>可显图</span>
+      <span class="chip">tvbox系列 · <b>影视系列专用</b></span>
+      <span class="chip">图片加密 <b>加密通用</b>文本加密</span>
     </div>
   </header>
 
+  <!-- 顶层模式：图片加密 / 文本加密 -->
+  <div class="mode-tabs top-tabs" id="modeSwitch">
+    <button id="mImg" class="active">🖼️ 图片加密</button>
+    <button id="mTxt">📝 文本加密</button>
+  </div>
+
+  <!-- ═══════ 图片加密面板 ═══════ -->
+  <div id="paneImg">
   <div class="card">
     <h2><span class="no">1</span>选择载体图片</h2>
     <div class="drop" id="imgDrop">
@@ -243,18 +252,60 @@
       <img id="imgPrev" alt="预览">
       <div class="stat" id="stat"></div>
     </div>
-    <div class="note">✓ GitLab：上传时任意后缀 / 无后缀都会按内容嗅探显示图片<br>✓ GitHub：请保留 .png / .jpg / .webp 真实后缀，否则浏览器不渲染图片</div>
+    <div class="note">✓ GitLab：上传时任意后缀 / 无后缀都会按内容嗅探显示图片<br>✓ GitHub：请保留 .png / .jpg / .webp 真实后缀，否则浏览器不渲染</div>
     <a class="dl" id="dlBtn" download="embed_output.webp">💾 保存加密图片</a>
     <button class="btn ghost" id="reExtract">🔍 自检 · 反提取验证</button>
     <div class="stat" id="verify"></div>
   </div>
+  </div><!-- /paneImg -->
 
-  <footer>纯本地运行 · 图片与配置不出设备<br>tvbox · 影视系列 格式兼容</footer>
+  <!-- ═══════ 文本加密面板 ═══════ -->
+  <div id="paneTxt" style="display:none">
+    <div class="card">
+      <h2><span class="no">1</span>提供 JSON 内容</h2>
+      <div class="mode-tabs">
+        <button id="ttabA" class="active">📄 选 JSON 文件</button>
+        <button id="ttabB">📋 粘贴 JSON 文本</button>
+      </div>
+      <div id="tpaneA">
+        <div class="drop" id="tjsonDrop">
+          <span class="ico">📄</span>
+          <div class="t1">点击选择 .json 文件</div>
+          <div class="t2">选中后自动填入文本框，可再手动修改</div>
+          <input type="file" id="tjsonFile" accept=".json,.txt,application/json">
+        </div>
+      </div>
+      <div id="tpaneB" style="display:none">
+        <textarea id="tjsonText" spellcheck="false" placeholder='{
+  "spider": "./spider.jar;md5;....",
+  "sites": [...]
+}'></textarea>
+      </div>
+    </div>
+
+    <button class="btn" id="tgo">⚡ 生成加密文本</button>
+    <div class="err" id="terr"></div>
+
+    <div class="card" id="tresult">
+      <div class="res-head"><span class="dot"></span><span>生成完成</span></div>
+      <div class="stat" id="tstat"></div>
+      <div class="note">✓ 上传为 .json / .txt 后缀均可，壳按 <b>通用加密</b> 标记识别解码<br>⚠ 人打开链接会看到 base64 文本，无图片伪装效果</div>
+      <a class="dl" id="tdlBtn" download="embed.txt">💾 保存加密文本</a>
+      <button class="btn ghost" id="treExtract">🔍 自检 · 反提取验证</button>
+      <div class="stat" id="tverify"></div>
+    </div>
+  </div><!-- /paneTxt -->
+
+  <footer>纯本地运行 · 图片与配置不出设备<br>TVBox系列 · 影视系列 格式兼容</footer>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
 let imgData = null, imgName = 'embed_output';
+
+// ── 顶层模式切换：图片加密 / 文本加密 ──
+$('mImg').onclick = () => { $('mImg').classList.add('active'); $('mTxt').classList.remove('active'); $('paneImg').style.display=''; $('paneTxt').style.display='none'; };
+$('mTxt').onclick = () => { $('mTxt').classList.add('active'); $('mImg').classList.remove('active'); $('paneTxt').style.display=''; $('paneImg').style.display='none'; };
 
 // ── 拖放区交互（点击 + 拖拽 + 选中态）──
 function bindDrop(zoneId, inputId, pickedId, onFile) {
@@ -310,12 +361,19 @@ function findJpgEnd(d) {
 $('tabA').onclick = () => { $('tabA').classList.add('active'); $('tabB').classList.remove('active'); $('paneA').style.display=''; $('paneB').style.display='none'; };
 $('tabB').onclick = () => { $('tabB').classList.add('active'); $('tabA').classList.remove('active'); $('paneB').style.display=''; $('paneA').style.display='none'; };
 
+// 文本面板的模式切换
+$('ttabA').onclick = () => { $('ttabA').classList.add('active'); $('ttabB').classList.remove('active'); $('tpaneA').style.display=''; $('tpaneB').style.display='none'; };
+$('ttabB').onclick = () => { $('ttabB').classList.add('active'); $('ttabA').classList.remove('active'); $('tpaneB').style.display=''; $('tpaneA').style.display='none'; };
+
 bindDrop('imgDrop', 'imgFile', 'imgPicked', f => {
   imgName = f.name.replace(/\.[^.]+$/, '');
   f.arrayBuffer().then(b => imgData = new Uint8Array(b));
 });
 bindDrop('jsonDrop', 'jsonFile', null, f => {
   f.text().then(t => { $('jsonText').value = t; $('tabB').click(); });
+});
+bindDrop('tjsonDrop', 'tjsonFile', null, f => {
+  f.text().then(t => { $('tjsonText').value = t; $('ttabB').click(); });
 });
 
 function fail(msg) { const el=$('err'); el.textContent = '❌ ' + msg; el.style.display='block'; }
@@ -378,6 +436,50 @@ $('reExtract').onclick = () => {
     ? '<span class="ok">✓ 自检通过：反提取内容与原 JSON 逐字节一致</span>'
     : '<span style="color:#fb7185">✗ 自检失败：内容不一致</span>';
 };
+
+// ═══════════ 文本加密面板逻辑 ═══════════
+function tfail(msg) { const el=$('terr'); el.textContent = '❌ ' + msg; el.style.display='block'; }
+
+$('tgo').onclick = () => {
+  $('terr').style.display='none';
+  const json = $('tjsonText').value.trim();
+  if (!json) return tfail('JSON 内容为空（选文件或粘贴文本）');
+  try { JSON.parse(json); } catch(e) { if(!confirm('JSON 格式好像不合法（'+e.message+'）\n确定仍要加密吗？')) return; }
+
+  // 纯文本形态：换行 + 伪装头 + base64(json) —— 与图片版同一套壳解码逻辑
+  const b64 = btoa(unescape(encodeURIComponent(json)));
+  const out = new TextEncoder().encode('\nYmFzZTY0**' + b64);
+  const blob = new Blob([out], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+
+  $('tstat').innerHTML =
+    `JSON 载荷：<b>${json.length.toLocaleString()}</b> 字符 → base64 <b>${b64.length.toLocaleString()}</b> B<br>` +
+    `生成文件：共 <b>${out.length.toLocaleString()}</b> B<br>` +
+    `<span class="ok">✓ 壳按 通用加密 标记识别，与图片版同一解码逻辑</span>`;
+  const dl = $('tdlBtn');
+  dl.href = url;
+  dl.download = 'embed.txt';
+  $('tresult').style.display = 'block';
+  $('tverify').textContent = '';
+  dl._out = out; dl._json = json;
+  $('tresult').scrollIntoView({ behavior: 'smooth' });
+};
+
+// 文本版自检：直接从内存里的生成物反提取
+$('treExtract').onclick = () => {
+  const dl = $('tdlBtn');
+  const out = dl._out, json = dl._json;
+  const tail = new TextDecoder().decode(out).replace(/^\s+/, '');
+  if (!tail.startsWith('YmFzZTY0**')) { $('tverify').innerHTML = '<span style="color:#fb7185">提取失败：找不到伪装头</span>'; return; }
+  const b64 = tail.slice(10);
+  let back;
+  try { back = decodeURIComponent(escape(atob(b64))); }
+  catch(e) { $('tverify').innerHTML = '<span style="color:#fb7185">提取失败：base64 解码异常</span>'; return; }
+  $('tverify').innerHTML = back === json
+    ? '<span class="ok">✓ 自检通过：反提取内容与原 JSON 逐字节一致</span>'
+    : '<span style="color:#fb7185">✗ 自检失败：内容不一致</span>';
+};
+
 </script>
 </body>
 </html>

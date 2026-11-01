@@ -1,0 +1,2505 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>全球追更</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --bg: #1B1B1F;
+            --ink: #FBF8FF;
+            --ink-soft: rgba(251, 248, 255, .72);
+            --panel: rgba(255, 255, 255, .13);
+            --panel-solid: #6E5A7E;
+            --line: rgba(255, 255, 255, .32);
+            --accent: #2f7cf6;
+            --danger: #FF8A8E;
+        }
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        html,
+        body {
+            margin: 0;
+            min-height: 100%;
+            background: var(--bg);
+            color: var(--ink);
+            font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+            font-size: 15px;
+            line-height: 1.5;
+        }
+        button,
+        input {
+            font: inherit;
+            color: inherit;
+        }
+        button {
+            cursor: pointer;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 6px 12px;
+        }
+        img {
+            display: block;
+            max-width: 100%;
+        }
+        .shell {
+            width: 100%;
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 0 14px 24px;
+        }
+        .topbar {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            padding: 12px 0 10px;
+            background: transparent;
+        }
+        .title-row {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .title-row h1 {
+            font-size: 20px;
+            margin: 0;
+            font-weight: 600;
+        }
+        #status {
+            color: var(--ink-soft);
+            font-size: 13px;
+        }
+        .search-row {
+            display: flex;
+            gap: 8px;
+        }
+        .search-row input {
+            flex: 1;
+            min-width: 0;
+            padding: 8px 10px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+        }
+        .tabs,
+        .chart-tabs {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 6px 0;
+            scrollbar-width: none;
+        }
+        .tabs::-webkit-scrollbar,
+        .chart-tabs::-webkit-scrollbar {
+            display: none;
+        }
+        .tab,
+        .chart-tab {
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .tab.active,
+        .chart-tab.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+        .tab-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            border-radius: 6px;
+            background: var(--panel);
+            border: 1px solid var(--line);
+            font-size: 12px;
+        }
+        .tab.active .tab-icon {
+            background: rgba(255, 255, 255, .18);
+            border-color: transparent;
+            color: #fff;
+        }
+        .chart-head {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        .chart-head h2 {
+            font-size: 17px;
+            margin: 0;
+            font-weight: 600;
+        }
+        .chart-head .count {
+            color: var(--ink-soft);
+            font-size: 13px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+            gap: 12px;
+        }
+        .card {
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            overflow: hidden;
+            background: var(--panel);
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+        }
+        .poster {
+            position: relative;
+            aspect-ratio: 2 / 3;
+            background: rgba(255, 255, 255, .18);
+        }
+        .poster img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .rank {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            min-width: 22px;
+            text-align: center;
+            padding: 1px 5px;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, .72);
+            color: #fff;
+            font-size: 12px;
+        }
+        .meta {
+            padding: 8px 8px 4px;
+        }
+        .name {
+            font-size: 14px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .kind {
+            color: var(--ink-soft);
+            font-size: 12px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .actions {
+            display: flex;
+            gap: 6px;
+            padding: 6px 8px 9px;
+            margin-top: auto;
+        }
+        .actions .mini {
+            flex: 1;
+            padding: 4px 6px;
+            font-size: 13px;
+        }
+        .empty,
+        .error {
+            padding: 32px 12px;
+            text-align: center;
+            color: var(--ink-soft);
+        }
+        .error {
+            color: var(--danger);
+        }
+        .main-tabs {
+            display: flex;
+            gap: 8px;
+            padding: 4px 0 8px;
+        }
+        .main-tab {
+            flex: 1;
+            padding: 9px;
+            font-size: 15px;
+        }
+        .main-tab.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+        .search-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 4px 0 10px;
+            font-size: 15px;
+            font-weight: 600;
+        }
+        .more-row {
+            text-align: center;
+            padding: 14px 0 4px;
+        }
+        .dpan-section { margin-top: 18px; text-align: left; }
+        .dpan-title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+        .dpan-hint { font-size: 12px; font-weight: 400; color: var(--ink-soft); margin-left: 6px; }
+        .pan-sheet {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            display: none;
+            background: rgba(0, 0, 0, .5);
+        }
+        .pan-sheet.active {
+            display: block;
+        }
+        .pan-panel {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            max-height: 78vh;
+            overflow-y: auto;
+            background: var(--panel-solid);
+            color: var(--ink);
+            border-top: 1px solid var(--line);
+            border-radius: 12px 12px 0 0;
+            padding: 14px;
+        }
+        .pan-poster {
+            width: 54px;
+            height: 81px;
+            object-fit: cover;
+            border-radius: 6px;
+            display: none;
+            flex: none;
+        }
+        .pan-check-note {
+            margin: 2px 0 0;
+            font-size: 12px;
+            color: #FFD45A;
+            min-height: 0;
+        }
+        .pan-check-note:empty {
+            display: none;
+        }
+        .pan-head-text {
+            flex: 1;
+            min-width: 0;
+        }
+        .pan-filters {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 2px 0 10px;
+            scrollbar-width: none;
+        }
+        .pan-filters::-webkit-scrollbar {
+            display: none;
+        }
+        .pan-chip {
+            white-space: nowrap;
+            padding: 5px 12px;
+            font-size: 13px;
+        }
+        .pan-chip.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+        .pan-tags {
+            margin-top: 5px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        .pan-tag {
+            font-size: 11px;
+            padding: 1px 7px;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            color: var(--ink-soft);
+        }
+        .pan-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .pan-head h3 {
+            margin: 0;
+            font-size: 16px;
+        }
+        .pan-head p {
+            margin: 2px 0 0;
+            color: var(--ink-soft);
+            font-size: 13px;
+        }
+        .pan-item {
+            display: block;
+            width: 100%;
+            text-align: left;
+            margin-bottom: 8px;
+            padding: 10px;
+            background: var(--panel);
+        }
+        .pan-item b {
+            display: block;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .pan-item.dead {
+            opacity: .5;
+        }
+        .pan-state.bad {
+            color: #ff8f8f;
+        }
+        .pan-meta {
+            color: var(--ink-soft);
+            font-size: 12px;
+            margin-top: 2px;
+        }
+        .pan-url {
+            color: var(--ink-soft);
+            font-size: 12px;
+            word-break: break-all;
+            margin-top: 2px;
+        }
+        .info-sheet {
+            position: fixed;
+            inset: 0;
+            z-index: 60;
+            display: none;
+            background: #000;
+        }
+        .info-sheet.active {
+            display: block;
+        }
+        .info-bg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center 28%;
+        }
+        .info-close {
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            z-index: 2;
+        }
+        .info-bottom {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            max-height: 88vh;
+            overflow-y: auto;
+            padding: 110px 20px calc(18px + env(safe-area-inset-bottom));
+            text-align: left;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0), rgba(10, 5, 12, .5) 40%, rgba(10, 5, 12, .82));
+        }
+        .info-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #FFD45A;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, .8);
+            word-break: break-word;
+        }
+        .info-pills-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .info-pill {
+            background: rgba(25, 15, 35, .48);
+            border: 1px solid rgba(255, 255, 255, .38);
+            border-radius: 999px;
+            padding: 5px 13px;
+            font-size: 13px;
+            color: #fff;
+            white-space: nowrap;
+        }
+        .info-desc-head {
+            margin-top: 16px;
+            font-size: 15px;
+            font-weight: 600;
+            color: #fff;
+            cursor: pointer;
+        }
+        .info-desc {
+            margin-top: 8px;
+            font-size: 14.5px;
+            line-height: 1.75;
+            color: rgba(255, 255, 255, .92);
+            text-shadow: 0 1px 2px rgba(0, 0, 0, .8);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .info-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+        }
+        .info-act {
+            flex: 1;
+            padding: 13px 0;
+            border-radius: 999px;
+            background: rgba(25, 15, 35, .5);
+            border: 1px solid rgba(255, 255, 255, .42);
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .toast {
+            position: fixed;
+            left: 50%;
+            bottom: 28px;
+            transform: translateX(-50%);
+            z-index: 60;
+            display: none;
+            max-width: 86vw;
+            padding: 8px 14px;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, .82);
+            color: #fff;
+            font-size: 14px;
+        }
+
+        /* 液态玻璃（2026-10-29 加，只改界面层） */
+        .topbar {
+            background: rgba(27, 27, 31, .55);
+            -webkit-backdrop-filter: blur(18px) saturate(160%);
+            backdrop-filter: blur(18px) saturate(160%);
+            border-bottom: 1px solid rgba(255, 255, 255, .14);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12);
+        }
+        button,
+        .search-row input {
+            background: linear-gradient(180deg, rgba(255, 255, 255, .24), rgba(255, 255, 255, .08) 55%, rgba(255, 255, 255, .05));
+            -webkit-backdrop-filter: blur(14px) saturate(160%);
+            backdrop-filter: blur(14px) saturate(160%);
+            border: 1px solid rgba(255, 255, 255, .35);
+            border-radius: 12px;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), inset 0 -1px 0 rgba(255, 255, 255, .06), 0 6px 18px rgba(0, 0, 0, .30);
+        }
+        .tab.active,
+        .chart-tab.active,
+        .main-tab.active {
+            background: linear-gradient(180deg, rgba(96, 165, 250, .85), rgba(47, 124, 246, .75));
+            border-color: rgba(255, 255, 255, .4);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 6px 18px rgba(0, 0, 0, .30);
+        }
+        .card {
+            background: rgba(255, 255, 255, .07);
+            -webkit-backdrop-filter: blur(12px) saturate(150%);
+            backdrop-filter: blur(12px) saturate(150%);
+            border: 1px solid rgba(255, 255, 255, .22);
+            border-radius: 14px;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), 0 8px 22px rgba(0, 0, 0, .35);
+        }
+        .rank {
+            background: rgba(0, 0, 0, .45);
+            -webkit-backdrop-filter: blur(8px) saturate(150%);
+            backdrop-filter: blur(8px) saturate(150%);
+            border: 1px solid rgba(255, 255, 255, .25);
+        }
+        .pan-panel {
+            background: rgba(24, 24, 30, .58);
+            -webkit-backdrop-filter: blur(26px) saturate(170%);
+            backdrop-filter: blur(26px) saturate(170%);
+            border-top: 1px solid rgba(255, 255, 255, .35);
+            border-radius: 20px 20px 0 0;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 -12px 32px rgba(0, 0, 0, .45);
+        }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <header class="topbar">
+            <div class="title-row">
+                <h1>全球追更</h1>
+                <span id="status"></span>
+            </div>
+            <div class="search-row">
+                <input id="webhtvSearchInput" type="text" placeholder="输入片名，回车在本页搜片" autocomplete="off">
+                <button id="webhtvSearchBtn" type="button">搜索</button>
+                <button id="reloadBtn" type="button">刷新</button>
+            </div>
+            <input id="panBase" type="hidden" value="http://61.147.247.66:52440">
+        </header>
+
+        <div class="main-tabs">
+            <button id="mainTabGz" class="main-tab active" type="button">流媒体追更</button>
+            <button id="mainTabCharts" class="main-tab" type="button">全球榜单</button>
+        </div>
+
+        <section id="panelGz">
+            <div id="gzPlatforms" class="tabs"></div>
+            <div id="gzSorts" class="chart-tabs"></div>
+            <div id="gzTypes" class="chart-tabs"></div>
+            <main id="gzContent"></main>
+            <div class="more-row"><button id="gzMore" type="button">加载更多</button></div>
+        </section>
+
+        <section id="panelCharts" style="display:none">
+            <div id="tabs" class="tabs"></div>
+            <div id="chartTabs" class="chart-tabs"></div>
+            <main id="content"></main>
+        </section>
+
+        <section id="panelSearch" style="display:none">
+            <div class="search-head">
+                <span id="searchTitle">搜索结果</span>
+                <button id="searchClear" class="mini" type="button">清除</button>
+            </div>
+            <main id="searchContent"></main>
+        </section>
+    </div>
+
+    <!-- 盘搜面板 -->
+    <section id="panSheet" class="pan-sheet" aria-hidden="true">
+        <div class="pan-panel">
+            <div class="pan-head">
+                <img id="panPoster" class="pan-poster" alt="">
+                <div class="pan-head-text">
+                    <h3 id="panTitle">盘搜资源</h3>
+                    <p id="panHint">等待搜索</p>
+                    <p id="panCheckNote" class="pan-check-note"></p>
+                </div>
+                <button id="panClose" class="mini" type="button">关闭</button>
+            </div>
+            <div id="panFilters" class="pan-filters"></div>
+            <div id="panResults" class="pan-results"></div>
+        </div>
+    </section>
+
+    <!-- 全屏海报详情层(照玩偶详情: 大图+标题+双击显示简介+底部页签) -->
+    <section id="infoSheet" class="info-sheet" aria-hidden="true">
+        <img id="infoBg" class="info-bg" alt="">
+        <button id="infoClose" class="mini info-close" type="button">关闭</button>
+        <div class="info-bottom">
+            <div id="infoTitle" class="info-title"></div>
+            <div id="infoPills"></div>
+            <div id="infoDescHead" class="info-desc-head" style="display:none">⌃ 简介</div>
+            <div id="infoDesc" class="info-desc" style="display:none"></div>
+            <div class="info-actions">
+                <button id="infoSearch" class="info-act" type="button">🔍 搜索</button>
+                <button id="infoPan" class="info-act" type="button">☁ 盘搜</button>
+                <button id="infoMipan" class="info-act" type="button">🔎 觅搜</button>
+            </div>
+            <div id="dPanSection" class="dpan-section" style="display:none">
+                <div class="dpan-title"><span id="dPanTitle">盘搜资源</span> <span id="dPanHint" class="dpan-hint"></span></div>
+                <p id="dPanCheckNote" class="pan-check-note"></p>
+                <div id="dPanFilters" class="pan-filters"></div>
+                <div id="dPanResults" class="pan-results"></div>
+            </div>
+        </div>
+    </section>
+
+    <div id="toast" class="toast"></div>
+
+    <script>
+        const API = 'https://ratefuse.cn/api/charts/public';
+        const qs = new URLSearchParams(location.search);
+        const platformsOrder = ['豆瓣', 'IMDb', 'Rotten Tomatoes', 'Metacritic', 'Letterboxd', 'TMDB', 'Trakt'];
+        const panDiskTypes = [
+            ['quark', '夸克'], ['aliyun', '阿里'], ['baidu', '百度'], ['uc', 'UC'],
+            ['tianyi', '天翼'], ['xunlei', '迅雷'], ['123', '123'], ['115', '115'],
+            ['mobile', '移动'], ['pikpak', 'PikPak'], ['guangya', '光鸭'], ['magnet', '磁力'], ['ed2k', '电驴']
+        ];
+
+        const state = {
+            charts: [],
+            platform: '',
+            chartKey: '',
+            panResults: [],
+            panKeyword: '',
+            panFilter: 'all',
+        };
+
+        const $ = (id) => document.getElementById(id);
+        const PW = 'pass' + 'word';
+
+        function toast(text) {
+            const el = $('toast');
+            el.textContent = text;
+            el.style.display = 'block';
+            clearTimeout(toast.timer);
+            toast.timer = setTimeout(() => { el.style.display = 'none'; }, 2200);
+        }
+
+        function triggerWebhtvSearch(title) {
+            if (!title || !String(title).trim()) return;
+            const keyword = String(title).trim();
+            toast('搜索：' + keyword);
+
+            if (window.fm) {
+                try {
+                    if (typeof window.fm.search === 'function') {
+                        window.fm.search(keyword);
+                        return;
+                    }
+                    if (typeof window.fm.req === 'function') {
+                        window.fm.req('search', {
+                            method: 'POST',
+                            body: JSON.stringify({ keyword }),
+                            headers: { 'Content-Type': 'application/json' },
+                        });
+                        return;
+                    }
+                } catch (e) {
+                    console.warn('WEBHTV fm 搜索调用失败:', e);
+                }
+            }
+
+            try {
+                const schemeUrl = 'webhtv://search?keyword=' + encodeURIComponent(keyword);
+                window.location.href = schemeUrl;
+            } catch (e) { }
+        }
+
+        /* ========== 盘搜相关函数 ========== */
+        function sdk() {
+            const pan = window.fm && window.fm.pan ? window.fm.pan : {};
+            return {
+                req: window.fm && window.fm.req ? window.fm.req.bind(window.fm) : browserRequest,
+                pan: Object.assign({}, pan),
+            };
+        }
+
+        async function browserRequest(url, options) {
+            const init = options || {};
+            const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+            const timer = ctl && init.timeout ? setTimeout(() => ctl.abort(), Number(init.timeout) * 1000) : null;
+            try {
+                const response = await fetch(url, {
+                    method: init.method || 'GET',
+                    headers: init.headers || {},
+                    body: init.method && init.method !== 'GET' && init.method !== 'HEAD' ? init.body || '' : undefined,
+                    credentials: init.credentials === 'include' ? 'include' : 'same-origin',
+                    signal: ctl ? ctl.signal : undefined,
+                });
+                const body = init.responseType === 'json' ? await response.json() : await response.text();
+                return { ok: response.ok, status: response.status, url: response.url, body };
+            } finally {
+                if (timer) clearTimeout(timer);
+            }
+        }
+
+        // 盘搜有两处渲染面: 独立弹层(sheet)与详情页内嵌区(detail), 共用同一套数据与渲染逻辑
+        const PAN_VIEWS = {
+            sheet: { hint: 'panHint', note: 'panCheckNote', filters: 'panFilters', results: 'panResults' },
+            detail: { hint: 'dPanHint', note: 'dPanCheckNote', filters: 'dPanFilters', results: 'dPanResults' },
+        };
+        let panView = 'sheet';
+        function pv(name) { return $(PAN_VIEWS[panView][name]); }
+
+        function normalizePanBase(value) {
+            let base = String(value || '').trim() || 'http://61.147.247.66:52440';
+            if (!/^https?:\/\//i.test(base)) base = 'https://' + base;
+            return base.replace(/\/+$/, '');
+        }
+
+        function panApi(path, baseOverride) {
+            const base = normalizePanBase(baseOverride || $('panBase').value);
+            if (base.endsWith('/api') && path.startsWith('/api/')) return base + path.slice(4);
+            return base + path;
+        }
+
+        // 盘搜多源: 当前源优先, 后面是备用 PanSou 系实例, 一家失败自动换下一家
+        const PAN_FALLBACKS = ['https://so.252035.xyz']; // 备用只留 252035 一家; 首选是用户自部署源(panBase)
+        function panBases() {
+            const list = [];
+            const push = (b) => { const n = normalizePanBase(b); if (n && !list.includes(n)) list.push(n); };
+            push($('panBase').value);
+            PAN_FALLBACKS.forEach(push);
+            return list;
+        }
+
+        function setPanBase(base) {
+            $('panBase').value = base;
+            try { localStorage.setItem('ratefusePanBase', base); } catch (e) { }
+        }
+
+        function normalizePanDiskType(type) {
+            const value = String(type || '').trim().toLowerCase();
+            if (value === 'ali' || value === 'alipan') return 'aliyun';
+            if (value === 'others') return 'other';
+            if (value === '123pan') return '123';
+            if (value === '139' || value === 'caiyun') return 'mobile';
+            if (value === 'pikpakdrive') return 'pikpak';
+            if (value === 'guangyapan') return 'guangya';
+            if (value === 'bt' || value === 'magnetlink') return 'magnet';
+            return value;
+        }
+
+        function panDiskName(type) {
+            const normalized = normalizePanDiskType(type);
+            const found = panDiskTypes.find((item) => item[0] === normalized);
+            return found ? found[1] : normalized || '网盘';
+        }
+
+        function panSearchPayload(keyword) {
+            return {
+                kw: keyword,
+                res: 'merge',
+                src: 'all',
+                cloud_types: panDiskTypes.map((item) => item[0]),
+            };
+        }
+
+        async function postJson(url, payload, timeoutSec) {
+            const response = await sdk().req(url, {
+                method: 'POST',
+                responseType: 'text',
+                timeout: timeoutSec || 60,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload || {}),
+            });
+            if (response && response.error) throw new Error(response.error);
+            if (response && response.ok === false) throw new Error('HTTP ' + (response.status || 0));
+            const body = response && response.body;
+            const data = typeof body === 'string' ? JSON.parse(body || '{}') : body || {};
+            if (data && data.code && Number(data.code) !== 0 && Number(data.code) !== 200) {
+                throw new Error(data.message || data.error || ('HTTP ' + data.code));
+            }
+            return data;
+        }
+
+        async function getJson(url) {
+            try {
+                const response = await sdk().req(url, { method: 'GET', responseType: 'text', timeout: 20 });
+                if (response && !response.error && response.ok !== false) {
+                    const body = response.body;
+                    const data = typeof body === 'string' ? JSON.parse(body || 'null') : body;
+                    if (data) return data;
+                }
+            } catch (e) { }
+            const res = await fetch(url, { cache: 'no-store' });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
+        }
+
+        function normalizePanUrl(url) {
+            try {
+                const parsed = new URL(url);
+                parsed.hash = '';
+                parsed.hostname = parsed.hostname.toLowerCase();
+                return parsed.toString();
+            } catch (e) {
+                return String(url || '').trim();
+            }
+        }
+
+        // 显示标题取 note/title 首行里信息最全的一条(频道结果的 note 带年份/画质/集数), 去掉行首的装饰 emoji
+        function panDisplayTitle(link, keyword) {
+            const firstLine = (s) => String(s || '').split('\n')[0].trim();
+            let best = '';
+            [link.note, link.title, link.name, link.work_title].forEach((v) => {
+                const c = firstLine(v);
+                if (c.length > best.length) best = c;
+            });
+            best = best.replace(/^[^\u4e00-\u9fa5A-Za-z0-9《]+/, '').replace(/✨/g, '').trim();
+            return best || String(keyword || '盘搜资源');
+        }
+
+        // 相关性重排: 盘搜接口按关键词乱捞, 蹭热度的短剧标题常压在真资源前面;
+        // 按标题与片名的贴合度打分: 标题就是片名/以片名+边界(空格/年份/季集)开头的靠前, 片名埋在别的词中间的沉底
+        function panTitleCore(t) {
+            let str = String(t || '').trim();
+            str = str.replace(/^资源名称\s*[:：]\s*/, '');
+            str = str.replace(/^[\s🎬📺🔥✨⭐]+/, '');
+            const bk = str.match(/^《([^》]{1,40})》/);
+            if (bk) return bk[1].trim();
+            return str.replace(/^[【\[《]+/, '').trim();
+        }
+        function panRelevance(item, keyword) {
+            const kw = String(keyword || '').trim();
+            if (!kw) return 50;
+            const core = panTitleCore(item.title);
+            if (core === kw) return 100;
+            if (core.startsWith(kw)) {
+                const next = core.charAt(kw.length);
+                if (!next || /[\s\(\[【（·、:：\-—/]/.test(next) || /[0-9]/.test(next) || next === '第' || next === '季' || next === '集') return 95;
+                return 55;
+            }
+            if (String(item.title || '').includes(kw)) return 40;
+            return 5;
+        }
+        // 画质评分(用户 2026-10-27 定: 画质越高排越靠前): 按徽标加权, 杜比视界最重, 组合徽标累加
+        function panQualityScore(item) {
+            const w = { DolbyVision: 16, HDR: 8, '4K': 4, '60FPS': 2, '高码': 1, '1080P': 0.5, SDR: 0.25 };
+            return panBadges(item.qualityText || item.title).reduce((sum, t) => sum + (w[t] || 0), 0);
+        }
+        // 排序比较(负数=a靠前): 先相关性档位(真资源区/蹭词区), 档内比画质, 再比相关分
+        function comparePanItems(a, b, keyword) {
+            const ba = panRelevance(a, keyword) >= 90 ? 1 : 0;
+            const bb = panRelevance(b, keyword) >= 90 ? 1 : 0;
+            if (ba !== bb) return bb - ba;
+            const qa = panQualityScore(a), qb = panQualityScore(b);
+            if (qa !== qb) return qb - qa;
+            return panRelevance(b, keyword) - panRelevance(a, keyword);
+        }
+
+        function sortPanByRelevance(list, keyword) {
+            return list.map((item, idx) => ({ item, idx }))
+                .sort((x, y) => comparePanItems(x.item, y.item, keyword) || (x.idx - y.idx))
+                .map((d) => d.item);
+        }
+        function normalizePanResults(merged, keyword) {
+            const seen = new Set();
+            const items = [];
+            Object.entries(merged || {}).forEach(([type, links]) => {
+                const diskType = normalizePanDiskType(type);
+                if (!Array.isArray(links)) return;
+                links.forEach((link) => {
+                    const url = String(link && (link.url || link.link || link.href) || '').trim();
+                    if (!url) return;
+                    const key = diskType + '|' + normalizePanUrl(url);
+                    if (seen.has(key)) return;
+                    seen.add(key);
+                    items.push({
+                        key,
+                        diskType,
+                        url,
+                        normalizedUrl: String(link.normalized_url || link.normalizedUrl || '').trim(),
+                        [PW]: String(link[PW] || link.pass || '').trim(),
+                        title: panDisplayTitle(link, keyword),
+                        qualityText: [link.note, link.title, link.name].filter(Boolean).join(' '),
+                        source: String(link.source || link.channel || link.plugin || '').trim(),
+                        datetime: String(link.datetime || link.time || link.created_at || '').trim(),
+                    });
+                });
+            });
+            return items;
+        }
+
+        /* ========== 觅搜(mipan.so): 与盘搜平行搜, 结果按同一格式并入同一列表 ========== */
+        async function mipanFetchToken() {
+            const response = await sdk().req('https://www.mipan.so/api/token', {
+                method: 'GET', responseType: 'text', timeout: 15,
+                headers: { 'Accept': 'application/json', 'Referer': 'https://www.mipan.so/' },
+            });
+            if (response && response.error) throw new Error(response.error);
+            if (response && response.ok === false) throw new Error('HTTP ' + (response.status || 0));
+            const body = response && response.body;
+            const data = typeof body === 'string' ? JSON.parse(body || '{}') : body || {};
+            if (!data.token) throw new Error('未获取到觅搜 token');
+            return String(data.token);
+        }
+
+        // 觅搜失败不拖累盘搜: 任何环节出错都当 0 条返回; 只并网盘类结果(论坛附件类 others 不进列表)
+        async function searchMipanResults(keyword) {
+            try {
+                const token = await mipanFetchToken();
+                const response = await sdk().req('https://www.mipan.so/api/search', {
+                    method: 'POST', responseType: 'text', timeout: 30,
+                    headers: { 'Content-Type': 'application/json', 'X-Mipan-Token': token, 'Referer': 'https://www.mipan.so/' },
+                    body: JSON.stringify({ kw: keyword }),
+                });
+                if (response && response.error) throw new Error(response.error);
+                if (response && response.ok === false) throw new Error('HTTP ' + (response.status || 0));
+                const body = response && response.body;
+                const data = typeof body === 'string' ? JSON.parse(body || '{}') : body || {};
+                if (data && data.code && Number(data.code) !== 0 && Number(data.code) !== 200) throw new Error(data.message || ('HTTP ' + data.code));
+                const root = data && data.data ? data.data : data;
+                let merged = root && root.merged_by_type ? root.merged_by_type : null;
+                if (!merged && root && Array.isArray(root.results)) {
+                    merged = {};
+                    root.results.forEach((r) => {
+                        const links = r && Array.isArray(r.links) ? r.links : [r];
+                        links.forEach((l) => {
+                            if (!l) return;
+                            const ty = normalizePanDiskType(l.type || (r && r.type) || 'other');
+                            (merged[ty] = merged[ty] || []).push(Object.assign({}, r, l));
+                        });
+                    });
+                }
+                const items = normalizePanResults(merged || {}, keyword);
+                const playable = new Set(panDiskTypes.map((x) => x[0]));
+                return items.filter((it) => playable.has(it.diskType));
+            } catch (e) {
+                return [];
+            }
+        }
+
+        // 把后到的觅搜结果并进当前列表: 按 key 去重, 并完重排, 同步刷新缓存/页签计数/检测
+        function mergePanResults(extra, keyword, run) {
+            if (run !== state.panRun || !extra || !extra.length) return;
+            const seen = new Set(state.panResults.map((x) => x.key));
+            const fresh = extra.filter((x) => !seen.has(x.key));
+            if (!fresh.length) return;
+            fresh.forEach((it) => { const h = panHealthCache.get(it.key); if (h) it.health = h; });
+            state.panResults = sortPanByRelevance(state.panResults.concat(fresh), keyword);
+            panSearchCache.set(keyword + '|all', state.panResults);
+            panSearchCache.set(keyword + '|mipan', extra);
+            renderPanFilters();
+            renderPanResults();
+        }
+
+        function buildPanPlayPayload(item) {
+            let url = String(item && (item.normalizedUrl || item.url) || '').trim();
+            if (!url) return null;
+            if (/^push:\/\//i.test(url)) url = url.replace(/^push:\/\//i, '');
+            return {
+                type: normalizePanDiskType(item.diskType),
+                url,
+                [PW]: String((item && item[PW]) || '').trim(),
+                title: item.title || state.panKeyword || url,
+            };
+        }
+
+        function addPanPassword(url, password, item) {
+            let target = String(url || '').trim();
+            const code = String(password || '').trim();
+            if (!target || !code || /(?:[?&#])(pwd|password|passcode|code)=/i.test(target)) return target;
+            if (/^(magnet:|ed2k:\/\/)/i.test(target)) return target;
+            const param = normalizePanDiskType(item && item.diskType) === '115' ? 'password' : 'pwd';
+            try {
+                const parsed = new URL(target);
+                parsed.searchParams.set(param, code);
+                return parsed.toString();
+            } catch (e) {
+                const sep = target.includes('?') ? '&' : '?';
+                return target + sep + param + '=' + encodeURIComponent(code);
+            }
+        }
+
+        /* ========== 全屏海报详情层(照玩偶详情: 大图+金字标题+双击显示简介+底部页签) ========== */
+        const gzItems = {};
+        const infoDetailCache = {};
+        const TMDB_IMG_BIG = 'https://image.tmdb.org/t/p/original';
+        let infoToken = 0;
+        let infoCurrent = null;
+        let infoDescText = '';
+        let infoDescOpen = true;
+
+        function fmtDateCn(s) {
+            const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || '');
+            return m ? (m[1] + '年' + parseInt(m[2], 10) + '月' + parseInt(m[3], 10) + '日') : '';
+        }
+
+        // Nostr 同款信息片: 第一行 评分/类型/集数/状态, 第二行 首播/季/题材
+        function infoPillsFromDetail(d, media) {
+            const row1 = [], row2 = [];
+            if (!d) return [row1, row2];
+            if (d.vote_average) row1.push((Math.round(d.vote_average * 10) / 10) + '分');
+            row1.push(media === 'tv' ? '电视剧' : '电影');
+            if (media === 'tv') {
+                const total = d.number_of_episodes || 0;
+                const last = d.last_episode_to_air;
+                if (total) row1.push(last && last.episode_number && last.episode_number < total ? (last.episode_number + '/' + total + '集') : ('全' + total + '集'));
+                row1.push(d.status === 'Ended' || d.status === 'Canceled' ? '已完结' : '更新中');
+            }
+            const dt = fmtDateCn(d.first_air_date || d.release_date || '');
+            if (dt) row2.push((media === 'tv' ? '首播 ' : '上映 ') + dt);
+            if (media === 'tv' && d.number_of_seasons) row2.push(d.number_of_seasons + '季');
+            const g = ((d.genres) || []).map((x) => x.name).filter(Boolean)[0];
+            if (g) row2.push(g);
+            return [row1, row2];
+        }
+
+        function renderInfoPills(rows) {
+            $('infoPills').innerHTML = (rows || []).filter((r) => r && r.length).map((r) =>
+                '<div class="info-pills-row">' + r.map((t) => '<span class="info-pill">' + escapeHtml(t) + '</span>').join('') + '</div>').join('');
+        }
+
+        function tmdbSize(url, size) {
+            return String(url || '').replace(/\/t\/p\/[^/]+\//, '/t/p/' + size + '/');
+        }
+
+        // 先上中图保显示, 原图预加载成功后再替换, 避免大图慢/失败时黑屏
+        function setInfoBg(bg, url, firstSize) {
+            if (!url) { bg.removeAttribute('src'); bg.style.display = 'none'; return; }
+            bg.style.display = 'block';
+            const first = tmdbSize(url, firstSize);
+            const big = tmdbSize(url, 'original');
+            bg.src = first;
+            if (big !== first) {
+                const pre = new Image();
+                pre.onload = () => { bg.src = big; };
+                pre.src = big;
+            }
+        }
+
+        // 详情大图优先宽幅图(Nostr 详情同款取图), 没有宽幅图才用海报
+        function heroPick(p, raw, cached, det) {
+            const bd = (det && det.backdrop) || p.backdrop || (raw && raw.backdrop_path ? TMDB_IMG_BIG + raw.backdrop_path : '') || (cached && cached.backdrop) || '';
+            if (bd) return { url: bd, first: 'w1280' };
+            const poster = (det && det.poster) || p.poster || (raw && raw.poster_path ? TMDB_IMG + raw.poster_path : '') || (cached && cached.poster) || '';
+            return { url: poster, first: 'w780' };
+        }
+
+        // 列表渲染后在后台预加载前几部的大图(进浏览器缓存), 点开详情时直接命中, 不再现等慢图
+        const heroPrefetched = new Set();
+        let heroQueue = [];
+        let heroActive = 0;
+        function pumpHeroPrefetch() {
+            while (heroActive < 3 && heroQueue.length) {
+                const u = heroQueue.shift();
+                heroActive++;
+                const img = new Image();
+                img.onload = img.onerror = () => { heroActive--; pumpHeroPrefetch(); };
+                img.src = u;
+            }
+        }
+        function queueHeroPrefetch(url) {
+            if (!url || heroPrefetched.has(url)) return;
+            heroPrefetched.add(url);
+            heroQueue.push(url);
+            pumpHeroPrefetch();
+        }
+        function prefetchHeroImages(pageItems) {
+            (pageItems || []).slice(0, 12).forEach((it) => {
+                if (it.backdrop_path) queueHeroPrefetch(tmdbSize(TMDB_IMG + it.backdrop_path, 'w1280'));
+                else if (it.poster_path) queueHeroPrefetch(tmdbSize(TMDB_IMG + it.poster_path, 'w780'));
+                if (it.backdrop) queueHeroPrefetch(tmdbSize(it.backdrop, 'w1280'));
+                else if (it.poster && String(it.poster).includes('/t/p/')) queueHeroPrefetch(tmdbSize(it.poster, 'w780'));
+            });
+        }
+
+        // 海报本地缓存(学玩偶页): 海报 blob 存 IndexedDB, 命中直接读本地不走网络; 未命中顺手存一份
+        const PosterCache = {
+            db: null,
+            open() {
+                if (this.db) return Promise.resolve(this.db);
+                return new Promise((res) => {
+                    try {
+                        const r = indexedDB.open('GzPosterCache', 1);
+                        r.onupgradeneeded = (e) => { e.target.result.createObjectStore('img'); };
+                        r.onsuccess = (e) => { this.db = e.target.result; res(this.db); };
+                        r.onerror = () => res(null);
+                    } catch (e) { res(null); }
+                });
+            },
+            async get(url) {
+                const db = await this.open(); if (!db) return null;
+                return new Promise((res) => {
+                    try { const q = db.transaction('img').objectStore('img').get(url); q.onsuccess = () => res(q.result || null); q.onerror = () => res(null); }
+                    catch (e) { res(null); }
+                });
+            },
+            async set(url, blob) {
+                const db = await this.open(); if (!db) return;
+                try { db.transaction('img', 'readwrite').objectStore('img').put(blob, url); } catch (e) { /* ignore */ }
+            },
+        };
+        const posterCacheSeen = new Set();
+        async function cacheOnePoster(img) {
+            const url = img && img.getAttribute && img.getAttribute('src');
+            if (!url || !/^https?:/.test(url) || posterCacheSeen.has(url)) return;
+            posterCacheSeen.add(url);
+            const hit = await PosterCache.get(url);
+            if (hit) { try { img.src = URL.createObjectURL(hit); } catch (e) { /* ignore */ } return; }
+            fetch(url).then((r) => r.blob()).then((b) => { if (b && b.size > 1000) PosterCache.set(url, b); }).catch(() => { });
+        }
+        function cacheGridPosters() {
+            document.querySelectorAll('.card img').forEach((img) => { cacheOnePoster(img); });
+        }
+
+        // 海报加载失败时换 TMDB 备用域名(images.tmdb.org)再试一次(学玩偶页兜底链)
+        document.addEventListener('error', (e) => {
+            const t = e.target;
+            if (!t || t.tagName !== 'IMG' || t.dataset.altTried) return;
+            const src = t.getAttribute('src') || '';
+            if (src.indexOf('://image.tmdb.org') !== -1) { t.dataset.altTried = '1'; t.src = src.replace('://image.tmdb.org', '://images.tmdb.org'); }
+        }, true);
+
+        function renderInfoDesc() {
+            const has = !!infoDescText;
+            $('infoDescHead').style.display = has ? '' : 'none';
+            $('infoDesc').style.display = has && infoDescOpen ? '' : 'none';
+            $('infoDescHead').textContent = (infoDescOpen ? '⌃' : '⌄') + ' 简介';
+            if (has) $('infoDesc').textContent = infoDescText;
+        }
+        $('infoDescHead').addEventListener('click', () => { infoDescOpen = !infoDescOpen; renderInfoDesc(); });
+
+        function openInfo(p) {
+            if (!p || !p.title) return;
+            infoCurrent = p;
+            const tk = ++infoToken;
+            const media = p.media_type === 'tv' ? 'tv' : 'movie';
+            const key = media + ':' + (p.tmdb_id || '');
+            const raw = p.tmdb_id ? gzItems[key] : null;
+            const cached = infoDetailCache[key] || null;
+            $('infoTitle').textContent = p.title;
+            renderInfoPills(cached && cached.rows ? cached.rows : (p.remark ? [[p.remark], []] : [[media === 'tv' ? '电视剧' : '电影'], []]));
+            const bg = $('infoBg');
+            const pick = heroPick(p, raw, cached, null);
+            setInfoBg(bg, pick.url, pick.first);
+            infoDescText = (raw && raw.overview) || (cached && cached.overview) || '';
+            infoDescOpen = true;
+            renderInfoDesc();
+            $('infoSheet').classList.add('active');
+            pushLayerGuard();
+            $('infoSheet').setAttribute('aria-hidden', 'false');
+            startDetailPanSearch(p);
+            if (!p.tmdb_id || cached) return;
+            tmdbGet('/' + media + '/' + p.tmdb_id, {}).then((d) => {
+                if (tk !== infoToken || !d) return;
+                const det = {
+                    overview: d.overview || '',
+                    backdrop: d.backdrop_path ? TMDB_IMG_BIG + d.backdrop_path : '',
+                    poster: d.poster_path ? TMDB_IMG_BIG + d.poster_path : '',
+                    rows: infoPillsFromDetail(d, media),
+                };
+                infoDetailCache[key] = det;
+                const pick2 = heroPick(p, raw, cached, det);
+                if (pick2.url && tmdbSize(bg.getAttribute('src') || '', 'original') !== tmdbSize(pick2.url, 'original')) setInfoBg(bg, pick2.url, pick2.first);
+                renderInfoPills(det.rows);
+                if (det.overview) { infoDescText = det.overview; renderInfoDesc(); }
+            }).catch(() => { });
+        }
+
+        function closeInfo() {
+            $('infoSheet').classList.remove('active');
+            $('infoSheet').setAttribute('aria-hidden', 'true');
+        }
+
+        // 历史守卫: 打开弹层时压一条历史, 壳子把滑动/返回转成历史后退时先关弹层, 不整页退出
+        function pushLayerGuard() {
+            try { history.pushState({ gzLayer: 1 }, ''); } catch (e) { /* ignore */ }
+        }
+        window.addEventListener('popstate', () => {
+            if (pageGoBack()) pushLayerGuard();
+        });
+
+        // 左右滑动 = 返回上一级: 有弹层先关弹层回列表, 拦住手势别让它把整个页面退掉
+        function pageGoBack() {
+            if ($('panSheet').classList.contains('active')) { closePanSheet(); return true; }
+            if ($('infoSheet').classList.contains('active')) { closeInfo(); return true; }
+            return false;
+        }
+        // 滑动返回已取消(太容易误触): 关弹层只走「关闭」按钮与系统返回键(历史守卫仍会先关弹层不退出页面)
+
+        async function searchPanResources(item, opts) {
+            opts = opts || {};
+            const keyword = String(item && item.title || '').trim();
+            if (!keyword) return toast('缺少搜索标题');
+            const source = opts.source === 'mipan' ? 'mipan' : (opts.source === 'pan' ? 'pan' : 'all');
+            const cacheKey = keyword + '|' + source;
+            state.panSource = source;
+            state.panItem = item;
+            state.panKeyword = keyword;
+            state.panResults = [];
+            state.panFilter = 'all';
+            state.panSearching = false;
+            panView = opts.view === 'detail' ? 'detail' : 'sheet';
+            if (panView === 'detail') {
+                $('dPanSection').style.display = '';
+                $('dPanTitle').textContent = source === 'mipan' ? '觅搜资源' : '盘搜资源';
+            } else {
+                const pp = $('panPoster');
+                if (item && item.poster) { pp.src = item.poster; pp.style.display = 'block'; }
+                else { pp.removeAttribute('src'); pp.style.display = 'none'; }
+                openPanSheet(keyword);
+            }
+            pv('filters').innerHTML = '';
+            // 同关键词本页内搜过直接出缓存(已是多源合并结果), 不再等接口
+            const cachedSearch = panSearchCache.get(cacheKey);
+            if (cachedSearch && cachedSearch.length) {
+                state.panResults = sortPanByRelevance(cachedSearch, keyword);
+                cachedSearch.forEach((it) => { const h = panHealthCache.get(it.key); if (h) it.health = h; });
+                renderPanFilters();
+                renderPanResults();
+                return;
+            }
+            // 搜索方法照原版竞速法: 自部署源与 252035 两家并发, 第一家出结果的赢; 全空才算 0 条, 全失败提示里带失败源数。
+            // 单源超时没照原版的 15 秒: 现在只有 252035 一家有结果且冷搜常要 20+ 秒, 15 秒会把它误杀成 0 条, 放宽到 30 秒
+            const run = (state.panRun = (state.panRun || 0) + 1);
+            const bases = panBases().slice(0, 5);
+            if (source === 'mipan') {
+                pv('results').innerHTML = '<div class="empty">正在搜索觅搜资源...</div>';
+                state.panSearching = true;
+                renderPanFilters();
+                const mItems = await searchMipanResults(keyword);
+                if (run !== state.panRun) return;
+                state.panResults = sortPanByRelevance(mItems, keyword);
+                panSearchCache.set(cacheKey, mItems);
+                mItems.forEach((it) => { const h = panHealthCache.get(it.key); if (h) it.health = h; });
+                state.panSearching = false;
+                renderPanFilters();
+                renderPanResults();
+                return;
+            }
+            const mipanPromise = source === 'all' ? searchMipanResults(keyword) : Promise.resolve([]); // 合并模式才与盘搜同时开搜
+            pv('results').innerHTML = '<div class="empty">正在搜索盘搜资源...</div>';
+            state.panSearching = true;
+            renderPanFilters();
+            let settled = 0;
+            let won = false;
+            let successCount = 0;
+            let failCount = 0;
+            let lastErr = null;
+            await new Promise((resolveRace) => {
+                bases.forEach((base) => {
+                    (async () => {
+                        try {
+                            const body = await postJson(panApi('/api/search', base), panSearchPayload(keyword), 30);
+                            if (run !== state.panRun || won) return;
+                            const data = body && body.data ? body.data : body;
+                            const results = normalizePanResults(data && data.merged_by_type || {}, keyword);
+                            if (results.length) {
+                                won = true;
+                                state.panResults = sortPanByRelevance(results, keyword);
+                                panSearchCache.set(cacheKey, results);
+                                panSearchCache.set(keyword + '|pan', results);
+                                results.forEach((it) => { const h = panHealthCache.get(it.key); if (h) it.health = h; });
+                                setPanBase(base);
+                                state.panSearching = false;
+                                renderPanFilters();
+                                renderPanResults();
+                                mipanPromise.then((extra) => mergePanResults(extra, keyword, run));
+                            } else {
+                                successCount++;
+                            }
+                        } catch (err) {
+                            failCount++;
+                            lastErr = err;
+                        }
+                        settled++;
+                        if (settled >= bases.length || won) resolveRace();
+                    })();
+                });
+            });
+            if (run !== state.panRun || won) return;
+            const mipanItems = await mipanPromise;
+            if (run !== state.panRun) return;
+            if (mipanItems.length) {
+                state.panResults = sortPanByRelevance(mipanItems, keyword);
+                panSearchCache.set(cacheKey, mipanItems);
+                panSearchCache.set(keyword + '|mipan', mipanItems);
+                mipanItems.forEach((it) => { const h = panHealthCache.get(it.key); if (h) it.health = h; });
+                state.panSearching = false;
+                renderPanFilters();
+                renderPanResults();
+                return;
+            }
+            state.panSearching = false;
+            if (successCount > 0) {
+                state.panResults = [];
+                renderPanFilters();
+                renderPanResults();
+                return;
+            }
+            pv('hint').textContent = keyword + ' · 搜索失败（' + failCount + ' 源超时/不可用）';
+            pv('results').innerHTML = '<div class="error">盘搜失败：' + escapeHtml((lastErr && lastErr.message) || String(lastErr || 'timeout')) + '<br><br><button class="mini" id="panRetry" type="button">重试</button></div>';
+            const rb = $('panRetry');
+            if (rb) rb.addEventListener('click', () => searchPanResources(state.panItem, { view: panView, source: state.panSource }));
+        }
+
+        function startDetailPanSearch(p) {
+            if (!p || !p.title) return;
+            searchPanResources({ title: p.title, poster: p.poster || '' }, { view: 'detail' });
+        }
+
+        function openPanSheet(keyword) {
+            $('panTitle').textContent = '盘搜资源';
+            $('panHint').textContent = keyword || '等待搜索';
+            $('panSheet').classList.add('active');
+            $('panSheet').setAttribute('aria-hidden', 'false');
+            pushLayerGuard();
+        }
+
+        function closePanSheet() {
+            $('panSheet').classList.remove('active');
+            $('panSheet').setAttribute('aria-hidden', 'true');
+        }
+
+        function panBadges(title) {
+            const t = String(title || '');
+            const tags = [];
+            if (/dolby\s*vision|杜比/i.test(t) || /\bDV\b/.test(t)) tags.push('DolbyVision');
+            if (/HDR/i.test(t)) tags.push('HDR');
+            if (/4K|2160p/i.test(t)) tags.push('4K');
+            if (/1080p/i.test(t)) tags.push('1080P');
+            if (/高码/.test(t)) tags.push('高码');
+            if (/60\s*fps|60帧/i.test(t)) tags.push('60FPS');
+            if (/\bSDR\b/i.test(t)) tags.push('SDR');
+            return tags;
+        }
+
+        function panTagsHtml(title) {
+            const tags = panBadges(title);
+            if (!tags.length) return '';
+            return '<div class="pan-tags">' + tags.map((x) => '<span class="pan-tag">' + escapeHtml(x) + '</span>').join('') + '</div>';
+        }
+
+        function renderPanFilters() {
+            const root = pv('filters');
+            const counts = {};
+            state.panResults.forEach((x) => { counts[x.diskType] = (counts[x.diskType] || 0) + 1; });
+            const chips = [{ type: 'all', name: '全部', count: state.panResults.length }];
+            panDiskTypes.forEach(([type, name]) => { if (counts[type]) chips.push({ type, name, count: counts[type] }); });
+            Object.keys(counts).forEach((type) => {
+                if (!chips.some((c) => c.type === type)) chips.push({ type, name: panDiskName(type), count: counts[type] });
+            });
+            const curChip = chips.find((c) => c.type === state.panFilter) || chips[0];
+            pv('hint').textContent = (state.panKeyword || '盘搜') + ' · 共 ' + state.panResults.length + ' 条'
+                + (curChip && curChip.type !== 'all' ? ' · ' + curChip.name + ' ' + curChip.count : '')
+                + (state.panSearching ? ' · 搜索中' : '');
+            root.innerHTML = chips.map((c) =>
+                '<button class="pan-chip ' + (state.panFilter === c.type ? 'active' : '') + '" data-pf="' + escapeAttr(c.type) + '">' +
+                escapeHtml(c.name) + ' ' + c.count + '</button>').join('');
+            root.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+                state.panFilter = b.dataset.pf;
+                renderPanFilters();
+                renderPanResults();
+            }));
+        }
+
+        // 当前视图的列表顺序: 未检测时「全部」夸克在前; 一旦开始出检测结果, 按检测就位顺序排(已检的在前)
+        function visiblePanList() {
+            if (!state.panFilter || state.panFilter === 'all') {
+                if (state.panResults.some((x) => x.health)) return state.panResults.slice();
+                return state.panResults.filter((x) => x.diskType === 'quark').concat(state.panResults.filter((x) => x.diskType !== 'quark'));
+            }
+            return state.panResults.filter((x) => x.diskType === state.panFilter);
+        }
+
+        function panHealthRank(item) {
+            if (item.health === 'ok') return 0;
+            if (item.health === 'uncertain') return 1;
+            if (item.health === 'bad') return 3;
+            return 2;
+        }
+
+        // 每检完一条就把它提到前面: 可用的按检测完成顺序依次占第一排、第二排…, 未确认的排其后, 未检的沉底
+        function bumpCheckedPanItem(doneItem) {
+            const rank = panHealthRank(doneItem);
+            if (rank > 1) return;
+            const arr = state.panResults;
+            const idx = arr.indexOf(doneItem);
+            if (idx < 0) return;
+            arr.splice(idx, 1);
+            let pos = 0;
+            for (let i = 0; i < arr.length; i++) {
+                const r = panHealthRank(arr[i]);
+                if (r < rank || (r === rank && comparePanItems(arr[i], doneItem, state.panKeyword) <= 0)) pos = i + 1;
+            }
+            arr.splice(pos, 0, doneItem);
+            const root = pv('results');
+            if (!root || typeof root.querySelectorAll !== 'function') return;
+            const nodes = new Map();
+            root.querySelectorAll('.pan-item').forEach((n) => nodes.set(n.dataset.key, n));
+            visiblePanList().forEach((it) => {
+                const n = nodes.get(it.key);
+                if (n) root.appendChild(n);
+            });
+        }
+
+        function panItemHtml(item) {
+            return '<b>' + escapeHtml(item.title || state.panKeyword || '盘搜资源') + '</b>'
+                + panTagsHtml(item.qualityText || item.title)
+                + '<div class="pan-meta">' + escapeHtml(panDiskName(item.diskType))
+                + (item.password ? ' · 提取码 ' + escapeHtml(item.password) : '')
+                + '<span class="pan-state ' + (item.health || '') + '">' + escapeHtml(panHealthLabel(item)) + '</span></div>';
+        }
+
+        function renderPanResults() {
+            if (!panCheckRunning) setPanCheckNote('');
+            const root = pv('results');
+            const list = visiblePanList();
+            if (!list.length) {
+                root.innerHTML = '<div class="empty">暂无' + (state.panSource === 'mipan' ? '觅搜' : '盘搜') + '资源</div>';
+                return;
+            }
+            root.replaceChildren(...list.map((item) => {
+                const button = document.createElement('button');
+                button.className = 'pan-item' + (item.health === 'bad' ? ' dead' : '');
+                button.type = 'button';
+                button.dataset.key = item.key;
+                button.innerHTML = panItemHtml(item);
+                button.addEventListener('click', () => playPanResult(item));
+                return button;
+            }));
+            panHealthCheck(list);
+        }
+
+        // 失效检测(页面内自检, 不依赖壳子): 夸克/UC/阿里调各自的分享接口拿确定结论(活链 code=0 / 死链明确报错),
+        // 其余网盘打开分享页按状态码与死链文案判定; 单条探测带硬超时, 壳子请求卡住也不会拖死整个检测
+        const PAN_CHECK_TYPES = new Set(['aliyun', 'quark', 'uc', 'baidu', 'tianyi', 'xunlei', '115', 'mobile']);
+        const PAN_DEAD_MARKS = ['链接不存在', '分享不存在', '分享已取消', '取消了分享', '文件已被删除', '分享已过期', '链接已过期', '分享已失效', '资源不存在', '不存在或已删除', '页面不存在', '该链接不存在', '链接已经失效', '文件不存在', '分享的文件已经被取消', '已被取消', '你来晚了', '分享的文件已经被删除', '该分享已删除'];
+        const PAN_UA = 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36';
+
+        function panShareId(item) {
+            const u = String(item.normalizedUrl || item.url || '');
+            const m = u.match(/\/s\/([A-Za-z0-9_-]+)/) || u.match(/[?&]share_id=([A-Za-z0-9_-]+)/);
+            return m ? m[1] : '';
+        }
+        function panPasscode(item) {
+            if (item[PW]) return item[PW];
+            const m = String(item.url || '').match(/[?&#](?:pwd|password)=([0-9a-zA-Z]+)/i);
+            return m ? m[1] : '';
+        }
+        function panResJson(res) {
+            if (!res || res.error) return null;
+            if (res.body && typeof res.body === 'object') return res.body;
+            try { return JSON.parse(String(res.body || '')); } catch (e) { return null; }
+        }
+        // 夸克/UC 同族接口: POST sharepage/token, 活链 code=0 带 stoken, 死链 404 code=41006 分享不存在 (2026-10-27 实测)
+        async function probeQuarkFamily(item, apiHost, pr) {
+            const id = panShareId(item);
+            if (!id) return 'uncertain';
+            const res = await sdk().req(apiHost + '/1/clouddrive/share/sharepage/token?pr=' + pr + '&fr=pc', {
+                method: 'POST', responseType: 'text', timeout: 10,
+                headers: { 'Content-Type': 'application/json', 'User-Agent': PAN_UA },
+                body: JSON.stringify({ pwd_id: id, passcode: panPasscode(item) }),
+            });
+            const data = panResJson(res);
+            if (!data) return 'uncertain';
+            if (data.code === 0 && data.data && data.data.stoken) { item._stoken = data.data.stoken; item._shareId = id; return 'ok'; }
+            const msg = String(data.message || '');
+            if (Number(res.status) === 404 || data.code === 41006 || /不存在|取消|删除|失效|过期/.test(msg)) return 'bad';
+            if (/提取码|密码/.test(msg)) return 'locked';
+            return 'uncertain';
+        }
+        // 阿里云盘匿名接口: 活链 200 返回分享信息, 死链 404 code=NotFound.ShareLink (2026-10-27 实测)
+        async function probeAliyun(item) {
+            const id = panShareId(item);
+            if (!id) return 'uncertain';
+            const res = await sdk().req('https://api.aliyundrive.com/adrive/v3/share_link/get_share_by_anonymous', {
+                method: 'POST', responseType: 'text', timeout: 10,
+                headers: { 'Content-Type': 'application/json', 'User-Agent': PAN_UA },
+                body: JSON.stringify({ share_id: id, share_pwd: panPasscode(item) }),
+            });
+            const data = panResJson(res);
+            if (!data) return 'uncertain';
+            const code = String(data.code || '');
+            if (Number(res.status) === 200 && (data.share_id || data.file_infos || data.share_title || data.creator_id)) return 'ok';
+            if (/NotFound|Cancel|Expir|Deleted/i.test(code) || Number(res.status) === 404) return 'bad';
+            if (/Pwd|Password/i.test(code)) return 'locked';
+            return 'uncertain';
+        }
+        async function probePanLinkInner(item) {
+            if (item.diskType === 'quark') return probeQuarkFamily(item, 'https://drive-pc.quark.cn', 'ucpro');
+            if (item.diskType === 'uc') return probeQuarkFamily(item, 'https://pc-api.uc.cn', 'UC');
+            if (item.diskType === 'aliyun') return probeAliyun(item);
+            const url = item.normalizedUrl || item.url;
+            try {
+                const res = await sdk().req(url, {
+                    method: 'GET', responseType: 'text', timeout: 12,
+                    headers: { 'User-Agent': PAN_UA },
+                });
+                if (!res || res.error) return 'uncertain';
+                const status = Number(res.status || 0);
+                if (status === 404 || status === 410) return 'bad';
+                if (status >= 400) return 'uncertain';
+                const text = typeof res.body === 'string' ? res.body.slice(0, 120000) : '';
+                if (text && PAN_DEAD_MARKS.some((mk) => text.includes(mk))) return 'bad';
+                return 'ok';
+            } catch (e) {
+                return 'uncertain';
+            }
+        }
+        async function probePanLink(item) {
+            // 硬超时兜底: 单个请求卡住只让这一条判未确认, 不许拖住整批检测
+            let timer = null;
+            try {
+                return await Promise.race([
+                    probePanLinkInner(item),
+                    new Promise((resolve) => { timer = setTimeout(() => resolve('uncertain'), 11000); }),
+                ]);
+            } catch (e) {
+                return 'uncertain';
+            } finally {
+                if (timer) clearTimeout(timer);
+            }
+        }
+        // 光秃标题的夸克/UC 资源标题里没画质信息: 借检测拿到的 stoken 进分享目录读真实文件名补徽标
+        async function enrichQuarkQuality(item) {
+            const host = item.diskType === 'uc' ? 'https://pc-api.uc.cn' : 'https://drive-pc.quark.cn';
+            const pr = item.diskType === 'uc' ? 'UC' : 'ucpro';
+            if (!item._shareId || !item._stoken) return;
+            const getList = async (pfid) => {
+                const url = host + '/1/clouddrive/share/sharepage/detail?pr=' + pr + '&fr=pc&pwd_id=' + encodeURIComponent(item._shareId)
+                    + '&stoken=' + encodeURIComponent(item._stoken) + '&pdir_fid=' + encodeURIComponent(pfid) + '&_page=1&_size=50&ver=2';
+                const res = await sdk().req(url, { method: 'GET', responseType: 'text', timeout: 10, headers: { 'User-Agent': PAN_UA } });
+                const data = panResJson(res);
+                return data && data.data && Array.isArray(data.data.list) ? data.data.list : [];
+            };
+            const names = [];
+            let list = await getList('0');
+            for (let depth = 0; depth < 3 && list.length; depth++) {
+                list.forEach((f) => { if (!f.dir && f.file_name) names.push(f.file_name); });
+                if (names.length >= 3) break;
+                const dir = list.find((f) => f.dir && f.fid);
+                if (!dir) break;
+                list = await getList(dir.fid);
+            }
+            const text = names.join(' ');
+            if (text && panBadges(text).length) {
+                item.qualityText = ((item.qualityText || '') + ' ' + text).trim();
+            }
+        }
+        function refreshPanItemNode(item) {
+            pv('results').querySelectorAll('button').forEach((b) => {
+                if (b.dataset.key === item.key) b.innerHTML = panItemHtml(item);
+            });
+        }
+        const panHealthCache = new Map(); // 检测结果按链接缓存: 同一链接本页内只检一次, 之后一直保留显示
+        const panSearchCache = new Map(); // 盘搜结果按片名缓存: 同页重搜同一片名直接出结果
+        let panCheckRunning = false;
+
+        // 剔除已确认失效的资源并刷新列表/页签计数, 返回剔除条数
+        function pruneBadPanResults() {
+            const before = state.panResults.length;
+            state.panResults = state.panResults.filter((p) => p.health !== 'bad');
+            const removed = before - state.panResults.length;
+            if (removed) { renderPanFilters(); renderPanResults(); }
+            return removed;
+        }
+        function panHealthLabel(item) {
+            if (item.healthChecking) return ' · 检测中';
+            if (item.health === 'ok') return ' · 链接可用';
+            if (item.health === 'bad') return ' · 已失效';
+            if (item.health === 'locked') return ' · 需权限';
+            if (item.health === 'uncertain') return ' · 未确认';
+            return '';
+        }
+
+        function updatePanItemHealth(item) {
+            pv('results').querySelectorAll('button').forEach((b) => {
+                if (b.dataset.key !== item.key) return;
+                const s = b.querySelector('.pan-state');
+                if (s) { s.textContent = panHealthLabel(item); s.className = 'pan-state ' + (item.health || ''); }
+                b.classList.toggle('dead', item.health === 'bad');
+            });
+        }
+
+        function setPanCheckNote(text) {
+            const el = pv('note');
+            if (el) el.textContent = text || '';
+        }
+
+        async function panHealthCheck(list) {
+            if (panCheckRunning) return;
+            panCheckRunning = true;
+            let checkedAny = false;
+            try {
+                let removed = pruneBadPanResults();
+                state.panResults.forEach((p) => { p.healthChecking = false; }); // 清掉上轮残留的检测中标记
+                const checkable = state.panResults.filter((p) => PAN_CHECK_TYPES.has(p.diskType) && !p.health);
+                if (!checkable.length) {
+                    const alreadyChecked = state.panResults.filter((p) => p.health).length;
+                    setPanCheckNote(removed ? ('已剔除失效 ' + removed + ' 条') : (alreadyChecked ? ('已检测 ' + alreadyChecked + ' 条') : '没有可检测的链接'));
+                    return;
+                }
+                checkable.forEach((p) => { p.healthChecking = true; updatePanItemHealth(p); });
+                let done = 0;
+                for (let s = 0; s < checkable.length; s += 5) {
+                    const batch = checkable.slice(s, s + 5);
+                    await Promise.all(batch.map(async (p) => {
+                        checkedAny = true;
+                        try { p.health = await probePanLink(p); } catch (e) { p.health = 'uncertain'; }
+                        p.healthChecking = false;
+                        panHealthCache.set(p.key, p.health);
+                        updatePanItemHealth(p);
+                        bumpCheckedPanItem(p);
+                        if (p.health === 'ok' && (p.diskType === 'quark' || p.diskType === 'uc') && !panBadges(p.qualityText || p.title).length) {
+                            try { await enrichQuarkQuality(p); refreshPanItemNode(p); bumpCheckedPanItem(p); } catch (e) {}
+                        }
+                    }));
+                    done += batch.length;
+                    removed += pruneBadPanResults();
+                    setPanCheckNote('检测中… ' + done + '/' + checkable.length);
+                }
+                const totalChecked = state.panResults.filter((p) => p.health).length;
+                setPanCheckNote('已检测 ' + totalChecked + ' 条' + (removed ? ' · 剔除失效 ' + removed + ' 条' : ''));
+            } finally {
+                panCheckRunning = false;
+                // 搜索还在往里合并新结果时: 本轮检完发现还有没检的, 接着检
+                if (checkedAny && state.panResults.some((p) => PAN_CHECK_TYPES.has(p.diskType) && !p.health)) {
+                    setTimeout(() => { panHealthCheck(); }, 0);
+                }
+            }
+        }
+        async function playPanResult(item) {
+            const payload = buildPanPlayPayload(item);
+            if (!payload) return;
+            try {
+                const pan = sdk().pan || {};
+                if (pan.play) {
+                    await pan.play(payload);
+                    toast('已交给原生播放');
+                    return;
+                }
+                window.open(addPanPassword(payload.url, payload.password, payload), '_blank', 'noopener,noreferrer');
+                toast('已打开网盘链接');
+            } catch (err) {
+                toast('播放失败：' + (err.message || 'unknown'));
+            }
+        }
+
+        async function copyName(item) {
+            const text = item.title || '';
+            try {
+                await navigator.clipboard.writeText(text);
+                toast('已复制：' + text);
+            } catch (e) {
+                prompt('复制片名', text);
+            }
+        }
+
+        function initPanBase() {
+            const saved = 'http://61.147.247.66:52440'; // 用户自部署盘搜(新服务器 52440) 为首选源
+            $('panBase').value = normalizePanBase(saved);
+        }
+
+        /* ========== 榜单渲染 ========== */
+        function preferredPlatforms(charts) {
+            const set = new Set(charts.map((c) => c.platform));
+            return platformsOrder.filter((p) => set.has(p)).concat([...set].filter((p) => !platformsOrder.includes(p)));
+        }
+
+        function platformIconClass(p) {
+            const map = {
+                '豆瓣': 'douban',
+                'IMDb': 'imdb',
+                'Rotten Tomatoes': 'rt',
+                'Metacritic': 'metacritic',
+                'Letterboxd': 'letterboxd',
+                'TMDB': 'tmdb',
+                'Trakt': 'trakt',
+            };
+            return map[p] || 'tmdb';
+        }
+
+        function platformIconText(p) {
+            const map = {
+                '豆瓣': '豆',
+                'IMDb': 'I',
+                'Rotten Tomatoes': 'R',
+                'Metacritic': 'M',
+                'Letterboxd': 'L',
+                'TMDB': 'T',
+                'Trakt': 'T',
+            };
+            return map[p] || String(p).charAt(0);
+        }
+
+        function chartKey(chart) {
+            return String(chart && (chart.chart_id || chart.id || chart.key || chart.chart_name) || '');
+        }
+
+        function chartsForPlatform(platform) {
+            return state.charts
+                .filter((c) => c.platform === platform)
+                .sort((a, b) => (a.sort_order ?? 9999) - (b.sort_order ?? 9999) || String(a.chart_name).localeCompare(String(b.chart_name)));
+        }
+
+        function renderTabs() {
+            const tabs = $('tabs');
+            const platforms = preferredPlatforms(state.charts);
+            if (!state.platform && platforms.length) state.platform = platforms[0];
+            tabs.innerHTML = platforms.map((p) =>
+                '<button class="tab ' + (p === state.platform ? 'active' : '') +
+                '" data-platform="' + escapeAttr(p) + '">' +
+                '<span class="tab-icon ' + platformIconClass(p) + '">' + platformIconText(p) + '</span>' +
+                '<span class="tab-label">' + escapeHtml(p) + '</span></button>'
+            ).join('');
+            tabs.querySelectorAll('button').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    state.platform = btn.dataset.platform;
+                    state.chartKey = '';
+                    render();
+                });
+            });
+        }
+
+        function renderChartTabs(charts) {
+            const tabs = $('chartTabs');
+            if (!charts.length) {
+                tabs.innerHTML = '';
+                state.chartKey = '';
+                return;
+            }
+            if (!charts.some((chart) => chartKey(chart) === state.chartKey)) state.chartKey = chartKey(charts[0]);
+            tabs.innerHTML = charts.map((chart) => {
+                const key = chartKey(chart);
+                return '<button class="chart-tab ' + (key === state.chartKey ? 'active' : '') +
+                    '" data-chart="' + escapeAttr(key) + '" title="' + escapeAttr(chart.chart_name || '') + '">' +
+                    escapeHtml(chart.chart_name || '未命名榜单') + '</button>';
+            }).join('');
+            tabs.querySelectorAll('button').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    state.chartKey = btn.dataset.chart;
+                    render();
+                });
+            });
+        }
+
+        function render() {
+            renderTabs();
+            const content = $('content');
+            const charts = chartsForPlatform(state.platform);
+            renderChartTabs(charts);
+            if (!charts.length) {
+                content.innerHTML = '<div class="empty">暂无榜单</div>';
+                return;
+            }
+            const chart = charts.find((item) => chartKey(item) === state.chartKey) || charts[0];
+            const entries = [...(chart.entries || [])].sort((a, b) => a.rank - b.rank);
+            if (!entries.length) {
+                content.innerHTML = '<div class="empty">该榜单暂无条目</div>';
+                return;
+            }
+            content.innerHTML =
+                '<section class="chart"><div class="chart-head"><h2>' + escapeHtml(chart.chart_name || '') +
+                '</h2><span class="count">' + entries.length + ' 部</span></div>' +
+                '<div class="grid">' + entries.map(cardHtml).join('') + '</div></section>';
+
+            // 卡片整体点击 → 打开简介详情层
+            content.querySelectorAll('.card').forEach((card) => {
+                card.addEventListener('click', () => {
+                    const btn = card.querySelector('[data-play]');
+                    if (btn) openInfo(JSON.parse(decodeURIComponent(btn.dataset.play)));
+                });
+            });
+            // 盘搜按钮 → 打开盘搜面板（阻止冒泡）
+            content.querySelectorAll('[data-play]').forEach((btn) => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    searchPanResources(JSON.parse(decodeURIComponent(btn.dataset.play)));
+                });
+            });
+            // 复制按钮 → 复制片名（阻止冒泡）
+            content.querySelectorAll('[data-copy]').forEach((btn) => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    copyName(JSON.parse(decodeURIComponent(btn.dataset.copy)));
+                });
+            });
+            prefetchHeroImages(entries);
+            cacheGridPosters();
+        }
+
+        function cardHtml(item) {
+            const title = item.title || '';
+            const type = item.media_type === 'tv' ? '剧集' : '电影';
+            const poster = item.poster ?
+                '<img src="' + escapeAttr(item.poster) + '" alt="' + escapeAttr(title) + '" loading="lazy" decoding="async" referrerpolicy="no-referrer">' :
+                '';
+            const data = encodeURIComponent(JSON.stringify({
+                title: item.title || '',
+                media_type: item.media_type || 'movie',
+                tmdb_id: item.tmdb_id || '',
+                poster: item.poster || '',
+                backdrop: item.backdrop || '',
+            }));
+            return '<article class="card" data-title="' + escapeAttr(title) + '">' +
+                '<div class="poster">' + poster +
+                '<span class="rank">' + escapeHtml(String(item.rank || '')) + '</span></div>' +
+                '<div class="meta">' +
+                '<div class="name">' + escapeHtml(title) + '</div>' +
+                '<div class="kind">' + type + ' · TMDB ' + escapeHtml(String(item.tmdb_id || '')) + '</div>' +
+                '</div>' +
+                '<div class="actions">' +
+                '<button class="mini play" type="button" data-play="' + data + '">盘搜</button>' +
+                '<button class="mini" type="button" data-copy="' + data + '" title="复制片名">复制</button>' +
+                '</div></article>';
+        }
+
+        async function load() {
+            $('status').textContent = '加载中...';
+            $('content').innerHTML = '<div class="empty">正在获取榜单</div>';
+            try {
+                const json = await getJson(API);
+                state.charts = (Array.isArray(json) ? json : []).filter((c) => c.visible !== false);
+                const platforms = preferredPlatforms(state.charts);
+                if (!platforms.includes(state.platform)) {
+                    state.platform = platforms[0] || '';
+                    state.chartKey = '';
+                }
+                $('status').textContent = state.charts.length + '个榜单';
+                render();
+            } catch (err) {
+                $('status').textContent = '加载失败';
+                $('content').innerHTML = '<div class="error">榜单加载失败：' + escapeHtml(err.message || String(err)) + '</div>';
+            }
+        }
+
+        function escapeHtml(value) {
+            return String(value == null ? '' : value).replace(/[&<>"']/g, (s) => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[s]));
+        }
+
+        function escapeAttr(value) {
+            return escapeHtml(value).replace(/`/g, '&#96;');
+        }
+
+        /* ========== 流媒体追更(TMDB, 与原全球追更 py 同源同分类) ========== */
+        const TMDB_API = 'https://api.tmdb.org/3';
+        const TMDB_KEY = '2894d9a1baf7812b451de03c801b0281';
+        const TMDB_IMG = 'https://image.tmdb.org/t/p/w342';
+        const GZ_PLATFORMS = [
+            { id: 'domestic', name: '国内聚合', network: '2007|1419|1330|1605|1631' },
+            { id: 'netflix', name: 'Netflix', network: '213' },
+            { id: 'hbo', name: 'HBO Max', network: '49' },
+            { id: 'disney', name: 'Disney+', network: '2739' },
+            { id: 'appletv', name: 'Apple TV+', network: '2552' },
+            { id: 'amazon', name: 'Amazon Prime', network: '1024' },
+            { id: 'hulu', name: 'Hulu', network: '453' },
+            { id: 'paramount', name: 'Paramount+', network: '4330' },
+        ];
+        const GZ_SORTS = [
+            { n: '📅 追更模式', v: 'next_episode' },
+            { n: '📆 今日播出', v: 'daily_airing' },
+            { n: '🆕 最新上线', v: 'first_air_date.desc' },
+            { n: '⭐ 综合热度', v: 'popularity.desc' },
+        ];
+        const GZ_TYPES = [
+            { n: '🎥 电视剧集', v: 'tv' },
+            { n: '🎬 电影作品', v: 'movie' },
+            { n: '🌸 动漫动画', v: 'anime' },
+            { n: '🎤 综艺节目', v: 'variety' },
+        ];
+        const gz = { platform: 'domestic', sort: 'next_episode', type: 'tv', page: 1, loading: false, seen: new Set() };
+
+        function gzMedia() { return gz.type === 'movie' ? 'movie' : 'tv'; }
+
+        function gzToday() {
+            const d = new Date();
+            const p = (n) => String(n).padStart(2, '0');
+            return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+        }
+
+        function hasCJK(s) { return /[\u4e00-\u9fff]/.test(s || ''); }
+
+        async function tmdbGet(path, params) {
+            const q = new URLSearchParams(Object.assign({ api_key: TMDB_KEY, language: 'zh-CN' }, params || {}));
+            const res = await fetch(TMDB_API + path + '?' + q.toString(), { cache: 'no-store' });
+            if (!res.ok) throw new Error('TMDB HTTP ' + res.status);
+            return res.json();
+        }
+
+        function renderGzChips() {
+            $('gzPlatforms').innerHTML = GZ_PLATFORMS.map((p) =>
+                '<button class="tab ' + (p.id === gz.platform ? 'active' : '') + '" data-gzp="' + p.id + '">' + escapeHtml(p.name) + '</button>').join('');
+            $('gzPlatforms').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { gz.platform = b.dataset.gzp; renderGzChips(); gzLoad(false); }));
+            $('gzSorts').innerHTML = GZ_SORTS.map((s) =>
+                '<button class="chart-tab ' + (s.v === gz.sort ? 'active' : '') + '" data-gzs="' + escapeAttr(s.v) + '">' + escapeHtml(s.n) + '</button>').join('');
+            $('gzSorts').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { gz.sort = b.dataset.gzs; renderGzChips(); gzLoad(false); }));
+            $('gzTypes').innerHTML = GZ_TYPES.map((t) =>
+                '<button class="chart-tab ' + (t.v === gz.type ? 'active' : '') + '" data-gzt="' + escapeAttr(t.v) + '">' + escapeHtml(t.n) + '</button>').join('');
+            $('gzTypes').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { gz.type = b.dataset.gzt; renderGzChips(); gzLoad(false); }));
+        }
+
+        function gzCardHtml(item, media) {
+            if (item && item.id) gzItems[media + ':' + item.id] = item;
+            const title = item.name || item.title || '';
+            const poster = item.poster_path ?
+                '<img src="' + TMDB_IMG + escapeAttr(item.poster_path) + '" alt="' + escapeAttr(title) + '" loading="lazy" decoding="async" referrerpolicy="no-referrer">' : '';
+            const date = item.first_air_date || item.release_date || '';
+            const rate = item.vote_average ? '⭐' + (Math.round(item.vote_average * 10) / 10) : '';
+            const remark = [rate, date].filter(Boolean).join(' · ') || (media === 'tv' ? '剧集' : '电影');
+            const data = encodeURIComponent(JSON.stringify({
+                title: title,
+                media_type: media,
+                tmdb_id: item.id || '',
+                poster: item.poster_path ? TMDB_IMG + item.poster_path : '',
+                backdrop: item.backdrop_path ? TMDB_IMG_BIG + item.backdrop_path : '',
+            }));
+            return '<article class="card" data-title="' + escapeAttr(title) + '" data-gzid="' + escapeAttr(String(item.id || '')) + '">' +
+                '<div class="poster">' + poster + '</div>' +
+                '<div class="meta">' +
+                '<div class="name">' + escapeHtml(title) + '</div>' +
+                '<div class="kind" data-remark>' + escapeHtml(remark) + '</div>' +
+                '</div>' +
+                '<div class="actions">' +
+                '<button class="mini play" type="button" data-play="' + data + '">盘搜</button>' +
+                '<button class="mini" type="button" data-copy="' + data + '" title="复制片名">复制</button>' +
+                '</div></article>';
+        }
+
+        function wireGzCards() {
+            $('gzContent').querySelectorAll('.card').forEach((card) => {
+                if (card.dataset.wired) return;
+                card.dataset.wired = '1';
+                card.addEventListener('click', () => {
+                    const btn = card.querySelector('[data-play]');
+                    if (!btn) return;
+                    const p = JSON.parse(decodeURIComponent(btn.dataset.play));
+                    const rk = card.querySelector('[data-remark]');
+                    if (rk && rk.textContent) p.remark = rk.textContent;
+                    openInfo(p);
+                });
+            });
+            $('gzContent').querySelectorAll('[data-play]').forEach((btn) => {
+                if (btn.dataset.wired) return;
+                btn.dataset.wired = '1';
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    searchPanResources(JSON.parse(decodeURIComponent(btn.dataset.play)));
+                });
+            });
+            $('gzContent').querySelectorAll('[data-copy]').forEach((btn) => {
+                if (btn.dataset.wired) return;
+                btn.dataset.wired = '1';
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    copyName(JSON.parse(decodeURIComponent(btn.dataset.copy)));
+                });
+            });
+        }
+
+        async function gzEnrich(items, media) {
+            const needTrack = media === 'tv' && gz.sort !== 'popularity.desc';
+            await Promise.all(items.map(async (it) => {
+                let title = it.name || it.title || '';
+                if (!needTrack && hasCJK(title)) return;
+                const card = $('gzContent').querySelector('[data-gzid="' + it.id + '"]');
+                if (!card) return;
+                try {
+                    const d = await tmdbGet('/' + media + '/' + it.id, { append_to_response: 'alternative_titles' });
+                    if (!hasCJK(title)) {
+                        const alt = ((d.alternative_titles || {}).titles || (d.alternative_titles || {}).results || []);
+                        const cn = alt.find((t) => t.iso_3166_1 === 'CN' && t.title);
+                        if (cn) {
+                            title = cn.title;
+                            card.dataset.title = title;
+                            const nm = card.querySelector('.name');
+                            if (nm) nm.textContent = title;
+                            const enc = encodeURIComponent(JSON.stringify({ title: title, media_type: media, tmdb_id: it.id, poster: it.poster_path ? TMDB_IMG + it.poster_path : '', backdrop: it.backdrop_path ? TMDB_IMG_BIG + it.backdrop_path : '' }));
+                            card.querySelectorAll('[data-play]').forEach((b) => { b.dataset.play = enc; });
+                            card.querySelectorAll('[data-copy]').forEach((b) => { b.dataset.copy = enc; });
+                        }
+                    }
+                    if (needTrack) {
+                        const ep = d.next_episode_to_air || d.last_episode_to_air;
+                        const rk = card.querySelector('[data-remark]');
+                        if (ep && rk) {
+                            rk.textContent = (d.next_episode_to_air ? '🕒' : '✅') + String(ep.air_date || '').slice(5) +
+                                ' S' + String(ep.season_number || 0).padStart(2, '0') + 'E' + String(ep.episode_number || 0).padStart(2, '0');
+                        }
+                    }
+                } catch (e) { }
+            }));
+        }
+
+        async function gzLoad(append) {
+            if (gz.loading) return;
+            gz.loading = true;
+            const plat = GZ_PLATFORMS.find((p) => p.id === gz.platform) || GZ_PLATFORMS[0];
+            const media = gzMedia();
+            const endpoint = media === 'movie' ? '/discover/movie' : '/discover/tv';
+            if (!append) {
+                gz.page = 1;
+                gz.seen = new Set();
+                $('gzContent').innerHTML = '<div class="empty">加载中...</div>';
+            }
+            try {
+                const base = { page: gz.page, sort_by: (gz.sort === 'daily_airing' || gz.sort === 'next_episode') ? 'popularity.desc' : gz.sort };
+                if (gz.type === 'anime') base.with_genres = '16';
+                if (gz.type === 'variety') base.with_genres = '10764|10767';
+                if (gz.sort === 'daily_airing') {
+                    if (media === 'tv') { base['air_date.gte'] = gzToday(); base['air_date.lte'] = gzToday(); }
+                    else { base['primary_release_date.gte'] = gzToday(); base['primary_release_date.lte'] = gzToday(); }
+                }
+                let items = [];
+                for (const net of plat.network.split('|')) {
+                    const data = await tmdbGet(endpoint, Object.assign({}, base, { with_networks: net }));
+                    items = items.concat(data.results || []);
+                }
+                const fresh = [];
+                for (const it of items) {
+                    const id = String(it.id || '');
+                    if (!id || gz.seen.has(id)) continue;
+                    gz.seen.add(id);
+                    fresh.push(it);
+                }
+                if (gz.sort === 'popularity.desc') {
+                    fresh.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+                } else {
+                    fresh.sort((a, b) => String(b.first_air_date || b.release_date || '').localeCompare(String(a.first_air_date || a.release_date || '')));
+                }
+                const pageItems = fresh.slice(0, 20);
+                const html = pageItems.length ? '<div class="grid">' + pageItems.map((it) => gzCardHtml(it, media)).join('') + '</div>' : '';
+                if (append) {
+                    if (html) $('gzContent').insertAdjacentHTML('beforeend', html);
+                } else {
+                    $('gzContent').innerHTML = html || '<div class="empty">暂无内容</div>';
+                }
+                $('gzMore').style.display = pageItems.length ? '' : 'none';
+                wireGzCards();
+                prefetchHeroImages(pageItems);
+                cacheGridPosters();
+                gzEnrich(pageItems, media);
+            } catch (err) {
+                if (!append) $('gzContent').innerHTML = '<div class="error">加载失败：' + escapeHtml(err.message || String(err)) + '</div>';
+                $('gzMore').style.display = 'none';
+            }
+            gz.loading = false;
+        }
+
+        let lastMainTab = 'gz';
+        function switchMain(which) {
+            lastMainTab = which;
+            const isGz = which === 'gz';
+            $('panelGz').style.display = isGz ? '' : 'none';
+            $('panelCharts').style.display = isGz ? 'none' : '';
+            $('panelSearch').style.display = 'none';
+            $('mainTabGz').classList.toggle('active', isGz);
+            $('mainTabCharts').classList.toggle('active', !isGz);
+        }
+
+        // 本页搜片: 在 TMDB 片库里搜, 结果直接在本页出卡片(点卡看详情/盘搜), 不跳壳子全网搜索
+        async function pageSearch(query) {
+            closeInfo();
+            closePanSheet();
+            $('panelGz').style.display = 'none';
+            $('panelCharts').style.display = 'none';
+            $('panelSearch').style.display = '';
+            $('searchTitle').textContent = '搜索：' + query;
+            const box = $('searchContent');
+            box.innerHTML = '<div class="empty">搜索中...</div>';
+            try {
+                const data = await tmdbGet('/search/multi', { query });
+                const items = (data.results || []).filter((it) => (it.media_type === 'tv' || it.media_type === 'movie') && it.poster_path);
+                items.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+                const top = items.slice(0, 30);
+                if (!top.length) {
+                    box.innerHTML = '<div class="empty">本页片库没找到「' + escapeHtml(query) + '」</div>';
+                    return;
+                }
+                top.forEach((it) => { gzItems[it.media_type + ':' + it.id] = it; });
+                const entries = top.map((it) => ({
+                    title: it.name || it.title || '',
+                    poster: TMDB_IMG + it.poster_path,
+                    backdrop: it.backdrop_path ? TMDB_IMG_BIG + it.backdrop_path : '',
+                    tmdb_id: String(it.id || ''),
+                    media_type: it.media_type,
+                    rank: '',
+                }));
+                box.innerHTML = '<div class="grid">' + entries.map(cardHtml).join('') + '</div>';
+                box.querySelectorAll('.card').forEach((card) => {
+                    card.addEventListener('click', () => {
+                        const btn = card.querySelector('[data-play]');
+                        if (btn) openInfo(JSON.parse(decodeURIComponent(btn.dataset.play)));
+                    });
+                });
+                box.querySelectorAll('[data-play]').forEach((btn) => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        searchPanResources(JSON.parse(decodeURIComponent(btn.dataset.play)));
+                    });
+                });
+                box.querySelectorAll('[data-copy]').forEach((btn) => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        copyName(JSON.parse(decodeURIComponent(btn.dataset.copy)));
+                    });
+                });
+                prefetchHeroImages(top);
+                cacheGridPosters();
+            } catch (err) {
+                box.innerHTML = '<div class="error">搜索失败：' + escapeHtml(err.message || String(err)) + '</div>';
+            }
+        }
+
+        /* ========== 事件绑定 ========== */
+        const searchInput = $('webhtvSearchInput');
+        const searchBtn = $('webhtvSearchBtn');
+        const reloadBtn = $('reloadBtn');
+
+        function performSearchFromInput() {
+            const query = searchInput.value.trim();
+            if (query) pageSearch(query);
+        }
+
+        searchBtn.addEventListener('click', performSearchFromInput);
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                performSearchFromInput();
+            }
+        });
+
+        reloadBtn.addEventListener('click', load);
+        $('searchClear').addEventListener('click', () => {
+            $('searchContent').innerHTML = '';
+            switchMain(lastMainTab);
+        });
+
+        $('panClose').addEventListener('click', closePanSheet);
+        $('infoClose').addEventListener('click', closeInfo);
+        $('infoSheet').addEventListener('click', (event) => {
+            if (event.target === $('infoSheet')) closeInfo();
+        });
+        $('infoSearch').addEventListener('click', () => {
+            if (!infoCurrent) return;
+            const title = infoCurrent.title;
+            closeInfo();
+            triggerWebhtvSearch(title);
+        });
+        $('infoPan').addEventListener('click', () => {
+            const sec = $('dPanSection');
+            if (sec && sec.style.display !== 'none' && state.panSource === 'pan' && state.panKeyword === (infoCurrent && infoCurrent.title)) { sec.scrollIntoView({ block: 'start' }); return; }
+            if (!infoCurrent) return;
+            searchPanResources({ title: infoCurrent.title, poster: infoCurrent.poster || '' }, { view: 'detail', source: 'pan' });
+        });
+        $('infoMipan').addEventListener('click', () => {
+            const sec = $('dPanSection');
+            if (sec && sec.style.display !== 'none' && state.panSource === 'mipan' && state.panKeyword === (infoCurrent && infoCurrent.title)) { sec.scrollIntoView({ block: 'start' }); return; }
+            if (!infoCurrent) return;
+            searchPanResources({ title: infoCurrent.title, poster: infoCurrent.poster || '' }, { view: 'detail', source: 'mipan' });
+        });
+        $('panSheet').addEventListener('click', (event) => {
+            if (event.target === $('panSheet')) closePanSheet();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                if ($('infoSheet').classList.contains('active')) {
+                    closeInfo();
+                } else if ($('panSheet').classList.contains('active')) {
+                    closePanSheet();
+                } else {
+                    $('toast').style.display = 'none';
+                    clearTimeout(toast.timer);
+                }
+            }
+        });
+
+        $('mainTabGz').addEventListener('click', () => switchMain('gz'));
+        $('mainTabCharts').addEventListener('click', () => switchMain('charts'));
+        $('gzMore').addEventListener('click', () => { gz.page += 1; gzLoad(true); });
+
+        initPanBase();
+        renderGzChips();
+        gzLoad(false);
+        load();
+    </script>
+<style>/* GZVAR 07-折叠筛选条 */
+.fbar{display:flex;justify-content:space-between;align-items:center;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:11px 14px;font-size:14.5px;color:var(--ink);margin:2px 0 8px;cursor:pointer}#gzPlatforms,#gzSorts,#gzTypes{display:none}body.filters-open #gzPlatforms,body.filters-open #gzSorts,body.filters-open #gzTypes{display:flex}
+</style>
+<script>
+(function () {
+  var panel = document.getElementById('panelGz');
+  if (!panel) return;
+  var bar = document.createElement('button');
+  bar.type = 'button'; bar.className = 'fbar';
+  bar.innerHTML = '<span>筛选 · 平台 / 排序 / 类型</span><span class="fx">展开</span>';
+  panel.insertBefore(bar, panel.firstChild);
+  bar.addEventListener('click', function () {
+    var open = document.body.classList.toggle('filters-open');
+    bar.querySelector('.fx').textContent = open ? '收起' : '展开';
+  });
+})();
+</script>
+<style>/* GZTOP 标题水印+搜索记录 */
+.search-row{position:relative}
+h1.gz-wm{position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:16px;font-weight:800;letter-spacing:1px;color:var(--ink);opacity:.5;pointer-events:none;z-index:2;margin:0}
+.search-row input{padding-left:124px}
+.title-row{display:none}
+#status.gz-in{position:absolute;left:56px;top:50%;transform:translateY(-50%);font-size:12.5px;color:var(--ink);opacity:.5;pointer-events:none;z-index:2;white-space:nowrap}
+.search-row.gz-searching h1.gz-wm,.search-row.gz-searching #status.gz-in{display:none}
+.search-row.gz-searching input{padding-left:12px}
+#gzHist{display:none;gap:8px;flex-wrap:wrap;margin-top:8px}
+.hist-chip{background:var(--panel);border:1px solid var(--line);color:var(--ink-soft);border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer}
+.hist-clear{background:transparent;border:none;color:var(--ink-soft);font-size:12.5px;cursor:pointer;padding:5px 4px;text-decoration:underline}
+</style>
+<script>
+(function () {
+  try {
+    var h1 = document.querySelector('.title-row h1');
+    var row = document.querySelector('.search-row');
+    if (h1 && row) {
+      h1.textContent = '追更';
+      h1.classList.add('gz-wm');
+      row.appendChild(h1);
+    }
+    var st = document.getElementById('status');
+    if (st && row) {
+      st.classList.add('gz-in');
+      row.appendChild(st);
+    }
+  } catch (e) { }
+  var HKEY = 'gzSearchHistoryV1';
+  var hist = [];
+  try { hist = JSON.parse(localStorage.getItem(HKEY) || '[]'); if (!Array.isArray(hist)) hist = []; } catch (e) { hist = []; }
+  hist = hist.filter(function (x) { return typeof x === 'string' && x; }).slice(0, 10);
+  var box = null;
+  var input = document.getElementById('webhtvSearchInput');
+  function save() { try { localStorage.setItem(HKEY, JSON.stringify(hist)); } catch (e) { } }
+  function renderHist() {
+    if (!box) return;
+    if (!hist.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    box.style.display = 'flex';
+    box.innerHTML = hist.map(function (k) { return '<button type="button" class="hist-chip" data-k="' + escapeAttr(k) + '">' + escapeHtml(k) + '</button>'; }).join('') + '<button type="button" class="hist-clear">清空</button>';
+    box.querySelectorAll('.hist-chip').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (input) input.value = b.dataset.k;
+        if (typeof performSearchFromInput === 'function') performSearchFromInput();
+      });
+    });
+    var clr = box.querySelector('.hist-clear');
+    if (clr) clr.addEventListener('click', function () { hist = []; save(); renderHist(); });
+  }
+  function record(q) {
+    q = String(q || '').trim();
+    if (!q) return;
+    hist = [q].concat(hist.filter(function (x) { return x !== q; })).slice(0, 10);
+    save(); renderHist();
+  }
+  try {
+    var rowEl = document.querySelector('.search-row');
+    if (rowEl) {
+      box = document.createElement('div');
+      box.id = 'gzHist';
+      rowEl.insertAdjacentElement('afterend', box);
+      renderHist();
+    }
+  } catch (e) { }
+  if (typeof pageSearch === 'function') {
+    var orig = pageSearch;
+    pageSearch = function (q) { record(q); return orig.apply(null, arguments); };
+  }
+  try {
+    var srow = document.querySelector('.search-row');
+    if (input && srow) {
+      var syncSearching = function () {
+        srow.classList.toggle('gz-searching', document.activeElement === input || !!input.value);
+      };
+      input.addEventListener('focus', syncSearching);
+      input.addEventListener('blur', function () { setTimeout(syncSearching, 0); });
+      input.addEventListener('input', syncSearching);
+    }
+  } catch (e) { }
+})();
+</script>
+<style>/* GZTHEME 紫夜背景 */
+:root{--bg:#171226}
+</style>
+<style>/* GZTINT 详情层自适应海报色 */
+.info-sheet{background:rgb(var(--gzTintRGB,10,5,12))}
+.info-bottom{background:linear-gradient(to bottom,rgba(var(--gzTintRGB,10,5,12),0),rgba(var(--gzTintRGB,10,5,12),.45) 40%,rgba(var(--gzTintRGB,10,5,12),.86))}
+.info-pill{background:rgba(var(--gzTintRGB,10,5,12),.48)}
+.info-act{background:rgba(var(--gzTintRGB,10,5,12),.5)}
+</style>
+<script>
+(function () {
+  var cache = {};
+  var curTint = '10,5,12';
+  function setTint(rgb) {
+    curTint = rgb;
+    var sh = document.getElementById('infoSheet');
+    if (sh) sh.style.setProperty('--gzTintRGB', rgb);
+    if (sh && sh.classList.contains('active')) document.body.style.background = 'rgb(' + rgb + ')';
+  }
+  try {
+    var sheetEl = document.getElementById('infoSheet');
+    if (sheetEl && typeof MutationObserver === 'function') {
+      new MutationObserver(function () {
+        if (sheetEl.classList.contains('active')) document.body.style.background = 'rgb(' + curTint + ')';
+        else document.body.style.background = '';
+      }).observe(sheetEl, { attributes: true, attributeFilter: ['class'] });
+    }
+  } catch (e) { }
+  function sample(url) {
+    if (!url) return;
+    if (cache[url]) { setTint(cache[url]); return; }
+    var src = url;
+    try { if (typeof tmdbSize === 'function') src = tmdbSize(url, 'w780'); } catch (e) { }
+    var img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = function () {
+      try {
+        var cv = document.createElement('canvas');
+        cv.width = 48; cv.height = 48;
+        var cx = cv.getContext('2d');
+        cx.drawImage(img, 0, 0, 48, 48);
+        var d = cx.getImageData(0, 0, 48, 48).data;
+        var buckets = {}, bestKey = null, bestCount = 0;
+        var sr = 0, sg = 0, sb = 0, sn = 0;
+        for (var i = 0; i < d.length; i += 4) {
+          var r = d[i], g = d[i + 1], b = d[i + 2];
+          sr += r; sg += g; sb += b; sn++;
+          var mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+          if (!mx) continue;
+          var sat = (mx - mn) / mx, val = mx / 255;
+          if (sat < 0.25 || val < 0.15 || val > 0.95) continue;
+          var key = (r >> 4) + ',' + (g >> 4) + ',' + (b >> 4);
+          var bk = buckets[key] || (buckets[key] = { r: 0, g: 0, b: 0, n: 0 });
+          bk.r += r; bk.g += g; bk.b += b; bk.n++;
+          if (bk.n > bestCount) { bestCount = bk.n; bestKey = key; }
+        }
+        if (!sn) return;
+        var rgb;
+        if (bestKey) {
+          var bb = buckets[bestKey];
+          rgb = Math.round(bb.r / bb.n) + ',' + Math.round(bb.g / bb.n) + ',' + Math.round(bb.b / bb.n);
+        } else {
+          rgb = Math.round(sr / sn) + ',' + Math.round(sg / sn) + ',' + Math.round(sb / sn);
+        }
+        cache[url] = rgb;
+        setTint(rgb);
+      } catch (e) { }
+    };
+    img.src = src;
+  }
+  if (typeof openInfo === 'function') {
+    var orig = openInfo;
+    openInfo = function (p) {
+      setTint('10,5,12');
+      var ret = orig.apply(null, arguments);
+      try {
+        var bgEl = document.getElementById('infoBg');
+        var src = (bgEl && bgEl.getAttribute('src')) || (p && (p.backdrop || p.poster)) || '';
+        if (src) sample(src);
+      } catch (e) { }
+      return ret;
+    };
+  }
+})();
+</script>
+<style>
+/* GZCHARTCAR 榜单实时热门轮播 */
+.gzcc{margin:10px 0 4px}
+.gzcc-view{position:relative;overflow:hidden;border-radius:18px;border:1px solid var(--line);background:var(--panel)}
+.gzcc-tag{position:absolute;top:10px;left:12px;z-index:3;padding:2px 9px;border-radius:999px;background:rgba(0,0,0,.55);color:#FFD60A;font-size:12px}
+.gzcc-track{display:flex;transition:transform .45s ease}
+.gzcc-slide{position:relative;flex:0 0 100%;cursor:pointer}
+.gzcc-slide img{width:100%;height:176px;object-fit:cover;object-position:center 30%;display:block}
+.gzcc-meta{position:absolute;left:0;right:0;bottom:0;padding:26px 14px 10px;background:linear-gradient(180deg,transparent,rgba(8,8,14,.78));color:#fff}
+.gzcc-rank{font-size:12px;color:#FFD60A}
+.gzcc-title{font-size:18px;font-weight:800;text-shadow:0 1px 4px rgba(0,0,0,.5)}
+.gzcc-dots{position:absolute;right:12px;bottom:12px;display:flex;gap:5px;z-index:3}
+.gzcc-dot{width:7px;height:7px;border-radius:99px;background:rgba(255,255,255,.45);transition:all .3s}
+.gzcc-dot.on{width:18px;background:#fff}
+</style>
+<script>
+/* GZCHARTCAR 顶部轮播(今天这套):位置固定顶部,追更时跟随当前平台前8、榜单时跟随当前榜单前8 */
+(function () {
+  if (typeof render !== 'function') return;
+  var panelC = document.getElementById('panelCharts');
+  var panelS = document.getElementById('panelSearch');
+  var mainTabs = document.querySelector('.main-tabs');
+  if (!panelC || !mainTabs) return;
+  var box = document.createElement('section');
+  box.id = 'gzTopCar';
+  box.className = 'gzcc';
+  box.style.display = 'none';
+  mainTabs.parentNode.insertBefore(box, mainTabs);
+  var timer = null, idx = 0, count = 0, cur = [], touchX = null, lastGzKey = '';
+  function mode() {
+    if (panelS && panelS.style.display !== 'none') return 'search';
+    return panelC.style.display !== 'none' ? 'charts' : 'gz';
+  }
+  function pickCharts() {
+    var charts = chartsForPlatform(state.platform);
+    var chart = charts.find(function (c) { return chartKey(c) === state.chartKey; }) || charts[0];
+    if (!chart) return [];
+    return (chart.entries || []).slice().sort(function (a, b) { return a.rank - b.rank; }).slice(0, 8).map(function (e, i) {
+      return {
+        img: e.backdrop || e.poster || '',
+        top: '第' + (e.rank || (i + 1)) + '名',
+        title: e.title || '',
+        payload: { title: e.title || '', media_type: e.media_type || 'movie', tmdb_id: e.tmdb_id || '', poster: e.poster || '', backdrop: e.backdrop || '' }
+      };
+    });
+  }
+  function pickGz() {
+    var media = gzMedia();
+    var out = [];
+    document.querySelectorAll('#gzContent .card[data-gzid]').forEach(function (c) {
+      var raw = gzItems[media + ':' + c.dataset.gzid];
+      if (!raw || !(raw.backdrop_path || raw.poster_path)) return;
+      var rate = raw.vote_average ? '⭐' + (Math.round(raw.vote_average * 10) / 10) : '';
+      var date = raw.first_air_date || raw.release_date || '';
+      out.push({
+        img: raw.backdrop_path ? 'https://image.tmdb.org/t/p/w780' + raw.backdrop_path : (TMDB_IMG + raw.poster_path),
+        top: [rate, date].filter(Boolean).join(' · '),
+        title: raw.name || raw.title || '',
+        payload: {
+          title: raw.name || raw.title || '', media_type: media, tmdb_id: raw.id || '',
+          poster: raw.poster_path ? TMDB_IMG + raw.poster_path : '',
+          backdrop: raw.backdrop_path ? TMDB_IMG_BIG + raw.backdrop_path : '',
+          remark: [rate, date].filter(Boolean).join(' · ') || (media === 'tv' ? '剧集' : '电影')
+        }
+      });
+    });
+    return out.slice(0, 8);
+  }
+  function build(m) {
+    clearInterval(timer); timer = null; idx = 0;
+    cur = m === 'charts' ? pickCharts() : pickGz();
+    count = cur.length;
+    if (m === 'gz') { lastGzKey = gzKey(); if (count < 2) lastGzKey = ''; }
+    if (count < 2) { box.innerHTML = ''; box.style.display = 'none'; return; }
+    var slides = cur.map(function (s, i) {
+      return '<div class="gzcc-slide" data-i="' + i + '">' +
+        (s.img ? '<img src="' + escapeAttr(s.img) + '" alt="' + escapeAttr(s.title) + '" referrerpolicy="no-referrer">' : '') +
+        '<div class="gzcc-meta">' + (s.top ? '<div class="gzcc-rank">' + escapeHtml(s.top) + '</div>' : '') +
+        '<div class="gzcc-title">' + escapeHtml(s.title) + '</div></div></div>';
+    }).join('');
+    var dots = cur.map(function (_, i) { return '<span class="gzcc-dot' + (i === 0 ? ' on' : '') + '"></span>'; }).join('');
+    box.innerHTML = '<div class="gzcc-view"><div class="gzcc-tag">🔥 实时热门</div><div class="gzcc-track">' + slides + '</div><div class="gzcc-dots">' + dots + '</div></div>';
+    box.style.display = '';
+    var track = box.querySelector('.gzcc-track');
+    var dotEls = box.querySelectorAll('.gzcc-dot');
+    function go(i) {
+      if (box.style.display === 'none') return;
+      idx = (i + count) % count;
+      track.style.transform = 'translateX(-' + idx * 100 + '%)';
+      dotEls.forEach(function (d, j) { d.classList.toggle('on', j === idx); });
+    }
+    function auto() { clearInterval(timer); timer = setInterval(function () { go(idx + 1); }, 4000); }
+    box.querySelectorAll('.gzcc-slide').forEach(function (s) {
+      s.addEventListener('click', function () {
+        if (box.dataset.swiped === '1') { box.dataset.swiped = ''; return; }
+        var it = cur[Number(s.dataset.i) || 0];
+        if (it) openInfo(it.payload);
+      });
+    });
+    var view = box.querySelector('.gzcc-view');
+    view.addEventListener('touchstart', function (ev) { touchX = ev.touches[0].clientX; clearInterval(timer); }, { passive: true });
+    view.addEventListener('touchend', function (ev) {
+      if (touchX === null) return;
+      var dx = ev.changedTouches[0].clientX - touchX; touchX = null;
+      if (Math.abs(dx) > 40) { box.dataset.swiped = '1'; go(idx + (dx < 0 ? 1 : -1)); }
+      auto();
+    }, { passive: true });
+    auto();
+  }
+  function refresh() { var m = mode(); if (m !== 'search') { try { build(m); } catch (e) {} } }
+  var _render = render;
+  render = function () { _render(); if (mode() === 'charts') { try { build('charts'); } catch (e) {} } };
+  if (typeof gzLoad === 'function') {
+    var _gzLoad = gzLoad;
+    gzLoad = async function (append) { await _gzLoad(append); if (!append && mode() === 'gz') { try { build('gz'); } catch (e) {} } };
+  }
+  ['mainTabGz', 'mainTabCharts'].forEach(function (id) {
+    var b = document.getElementById(id);
+    if (b) b.addEventListener('click', function () { setTimeout(refresh, 0); });
+  });
+  function gzKey() { var c = document.querySelector('#gzContent .card[data-gzid]'); return c ? c.dataset.gzid : ''; }
+  var gcEl = document.getElementById('gzContent');
+  if (gcEl && typeof MutationObserver === 'function') {
+    new MutationObserver(function () {
+      if (mode() !== 'gz') return;
+      var k = gzKey();
+      if (!k) { lastGzKey = ''; return; }
+      if (k === lastGzKey) return;
+      lastGzKey = k;
+      try { build('gz'); } catch (e) {}
+    }).observe(gcEl, { childList: true });
+  }
+  refresh();
+  setTimeout(refresh, 1500);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>九月 · 3D 神经元图谱</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#03060d;
+  font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-tap-highlight-color:transparent;touch-action:none}
+canvas{display:block;position:fixed;top:0;left:0}
+.hud{position:fixed;pointer-events:none;z-index:5}
+.title{top:12px;left:14px;color:#7fc4ff;font-size:12px;letter-spacing:1px}
+.title b{color:#fff;font-size:16px;letter-spacing:2px}
+.title small{display:block;margin-top:3px;color:#3f5f7d;font-size:10px}
+.legend{bottom:10px;left:14px;color:#4a6a88;font-size:10px;line-height:1.75}
+.legend i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.tipb{bottom:10px;right:14px;color:#2f4a63;font-size:9px}
+#tip{position:fixed;padding:9px 12px;background:rgba(4,10,20,.96);border:1px solid #1a4a80;
+  border-radius:8px;color:#cfe8ff;font-size:11px;line-height:1.6;pointer-events:none;
+  opacity:0;transition:opacity .15s;max-width:230px;box-shadow:0 0 22px rgba(30,120,255,.3);z-index:9}
+#tip b{color:#6fe3ff}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hud title"><b>九月</b> · 3D 神经元图谱<small>108 站点 / 17 代理分支 / 7 个壳</small></div>
+<div class="hud legend">
+  <div><i style="background:#3ea6ff"></i>壳</div>
+  <div><i style="background:#00e5c0"></i>中枢</div>
+  <div><i style="background:#ffb020"></i>站点群</div>
+  <div><i style="background:#ff4f6d"></i>播放</div>
+</div>
+<div class="hud tipb">拖动旋转 · 悬停看详情</div>
+<div id="tip"></div>
+<script>
+/* ================= 数据 ================= */
+const SHELLS=[
+ {n:'tvbox白盒',   d:'TVBox OSC 白盒',  icon:'https://img.meituan.net/content/30844296b176332f9c6a5bee38d8fdf86576.webp'},
+ {n:'NewBox',d:'体验还不错',     icon:'https://img.meituan.net/content/373f192c9f7559afea01324e4dcf4ac46552.webp'},
+ {n:'默影视',    d:'默影视·影视二开',        icon:'https://img.meituan.net/content/f63a401581fd0c9f692b7a54b8aa56d410050.png'},
+ {n:'影视仓', d:'影视仓系列·体验还不错',     icon:'https://img.meituan.net/content/a5807f6b1d31c2ea942af972d4fdccc910490.webp'},
+ {n:'影视', d:'影视系列·蜂蜜+二开',     icon:'https://img.meituan.net/content/7ec81a4923c6a756b098143a95c989bc8407.png'},
+ {n:'OK影视',  d:'OK佬巅峰之作',       icon:'https://img.meituan.net/content/11eab7391452bdbf78fba6df43af55476518.webp'},
+ {n:'tvbox黑盒',  d:'tvbox黑盒·适用于老电视',       icon:'https://img.meituan.net/content/9f211e26c2388e2c1b9c3f192e369b639798.webp'}
+];
+const GROUPS=[
+ {n:'网盘直连',c:'#ffb020',cnt:10,items:['夸克','UC','百度','115','阿里','迅雷','天翼','123','光鸭','分享'],d:'扫码登录后观看网盘资源'},
+ {n:'搜索聚合',c:'#ff8a3d',cnt:7, items:['PanSou','TGSou','Mipansou','JuheSo','QuPanSo','Yinhai','SouJu'],d:'全网搜盘→有效性检测→网盘资源播放'},
+ {n:'4K资源站',c:'#c86bff',cnt:19,items:['木偶','快映','蜡笔','多多','闪电','欧哥','虎斑','指南','Wogg','花卷','立播','聚影','蜗牛','观影','搜4K','HDMoli','移动4K','双星','瑰瑰'],d:'4K网盘站·网盘资源收集站点'},
+ {n:'蓝光影视',c:'#3ea6ff',cnt:20,items:['红果','动漫巴士','DSX','枫叶','青麦','咕噜','华艺','饭客','毒舌','New6v','豆瓣','榜单'],d:'直接吐 mp4/m3u8'},
+ {n:'App线路',c:'#00e5c0',cnt:10,items:['App99','AppDrama','AppFox','AppLY','AppQi','AppRJ','AppYsV2','AppYQK','AppGet','AppYs'],d:'来自各家App资源'},
+ {n:'短剧',   c:'#ff4f6d',cnt:5, items:['七猫','河马','红果','好看','星芽'],d:'竖屏短剧'},
+ {n:'体育',   c:'#4ade80',cnt:4, items:['88','咖啡','飞球','瓜子'],d:'直播赛事'},
+ {n:'音乐FM', c:'#facc15',cnt:4, items:['蜻蜓','听世界','听播看','听友'],d:'音频流'},
+ {n:'B站',    c:'#fb7299',cnt:12,items:['Bili×10','BiliYS','AmuBili'],d:'B站资源播放'},
+ {n:'工具',   c:'#94a3b8',cnt:9, items:['配置中心','HTML聚合','急救','AList','WebDAV','推送','本地','小标片','SeedHub'],d:'配置/聚合/辅助'}
+];
+const BRANCHES=['pan','ck','bili','hg','biliys','czsp','hxq','kugou','danmu','danmaku','diydanmu','appdanmu','wallpaper','push','tzPic','xbpq','parseWeb'];
+const IMGS = SHELLS.map(s=>{ const im=new Image(); im.decoding='async'; im.src=s.icon; return im; });
+
+/* ================= 基础 ================= */
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W=0,H=0,CX=0,CY=0,RAD=200,tick=0;
+let rotY=0, rotX=-0.22, velY=0.0032, velX=0;
+let drag=false,lastX=0,lastY=0,hovered=null,nodes=[],links=[],motes=[];
+let PORTRAIT=true;
+
+function vp(){const v=window.visualViewport;return{
+  w:Math.round(v?v.width:(document.documentElement.clientWidth||innerWidth)),
+  h:Math.round(v?v.height:(document.documentElement.clientHeight||innerHeight))};}
+
+function resize(){
+  const v=vp(); W=v.w; H=v.h;
+  let dpr=Math.min(window.devicePixelRatio||1,3);
+  const MAXP=4000000, area=Math.max(W*H,1);
+  if(area*dpr*dpr>MAXP) dpr=Math.sqrt(MAXP/area);
+  cv.width=Math.round(W*dpr); cv.height=Math.round(H*dpr);
+  cv.style.width=W+'px'; cv.style.height=H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  CX=W/2; CY=H*0.46; PORTRAIT=H>W*1.15;
+  RAD=Math.min(W,H)*(PORTRAIT?0.34:0.42);
+  build();
+}
+
+/* ================= 3D 球面分布 ================= */
+const GA=Math.PI*(3-Math.sqrt(5));
+function sphere(i,n,r,latMin,latMax,jitter){
+  const phi=Math.acos(1-2*((i+0.5)/n));            // 0..π
+  const lat=latMin+(latMax-latMin)*(phi/Math.PI);  // 映射到纬度带
+  const th=GA*i + (jitter?(i*1.7):0);
+  const y=-Math.cos(lat*Math.PI)*r;
+  const rr=Math.sin(lat*Math.PI)*r;
+  return {x:rr*Math.cos(th), y:y, z:rr*Math.sin(th)};
+}
+
+function build(){
+  nodes=[];links=[];
+  const core={id:'core',x:0,y:0,z:0,type:'core',name:'九月',r:38,
+    d:'md5 149ac3c7…<br>108 站点 · 17 代理分支'};
+  nodes.push(core);
+
+  // 屏幕比例：竖屏横向收窄、纵向拉长；横屏相反
+  const kx = PORTRAIT ? 0.82 : 1.28;
+  const ky = PORTRAIT ? 1.30 : 0.92;
+  const shape = p => { p.x*=kx; p.y*=ky; p.z*=kx; return p; };
+
+  /* 壳：上半球面（不规则散布，带扰动） */
+  const rShell=RAD*1.34;
+  SHELLS.forEach((s,i)=>{
+    const p=shape(sphere(i,SHELLS.length,rShell,0.04,0.40,true));
+    nodes.push({id:'shell'+i,x:p.x,y:p.y,z:p.z,type:'shell',name:s.n,d:s.d,
+      shellIndex:i,r:PORTRAIT?14:16});
+  });
+
+  /* 站点群：三层球壳交错 + 整球面纬度，投影后自然散开不扎堆 */
+  const LAYERS=[1.34,1.60,1.86];
+  GROUPS.forEach((g,i)=>{
+    const R2=RAD*LAYERS[i%3];
+    const p=shape(sphere(i,GROUPS.length,R2,0.16,0.90,true));
+    nodes.push({id:'g'+i,x:p.x,y:p.y,z:p.z,type:'group',name:g.n,color:g.c,cnt:g.cnt,
+      d:g.d+'<br>'+g.cnt+' 个站点<br>'+g.items.join(' · '),
+      r:7.5+Math.min(g.cnt,20)*0.36});
+  });
+
+  /* 播放器：正下方偏前 */
+  nodes.push({id:'player',x:0,y:RAD*1.72*ky,z:RAD*0.5*kx,type:'out',
+    name:'播放器',d:'ExoPlayer / IJK<br>接收 127.0.0.1:9978 代理流',
+    r:13});
+
+  /* 连线：壳→核心→分组；核心→播放器 */
+  SHELLS.forEach((s,i)=>links.push({a:'shell'+i,b:'core',type:'in'}));
+  GROUPS.forEach((g,i)=>links.push({a:'core',b:'g'+i,type:'out',color:g.c}));
+  links.push({a:'core',b:'player',type:'play'});
+
+  buildMotes();
+}
+
+/* ================= 3D 工具 ================= */
+function rot(p){
+  const cy=Math.cos(rotY),sy=Math.sin(rotY);
+  let x=p.x*cy - p.z*sy, z=p.x*sy + p.z*cy;
+  const cx=Math.cos(rotX),sx=Math.sin(rotX);
+  const y=p.y*cx - z*sx; z=p.y*sx + z*cx;
+  return {x,y,z};
+}
+function proj(q){
+  const FOV=RAD*3.4;
+  const s=FOV/(FOV + q.z + RAD*0.35);
+  return {x:CX+q.x*s, y:CY+q.y*s, s, z:q.z};
+}
+const byId=id=>nodes.find(n=>n.id===id);
+
+/* 3D 二次贝塞尔 */
+function lerp3(a,b,t){return{x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t};}
+function bez3(a,b,t,bend){
+  const m=lerp3(a,b,0.5);
+  const k=(bend===undefined?0.16:bend);
+  const c={x:m.x - b.z*k, y:m.y + k*20, z:m.z + b.x*k};
+  const mt=1-t;
+  return {
+    x:mt*mt*a.x+2*mt*t*c.x+t*t*b.x,
+    y:mt*mt*a.y+2*mt*t*c.y+t*t*b.y,
+    z:mt*mt*a.z+2*mt*t*c.z+t*t*b.z
+  };
+}
+
+/* ================= 游走粒子 ================= */
+function buildMotes(){
+  motes=[];
+  links.forEach((l,li)=>{
+    const n = l.type==='play' ? 4 : 3;
+    for(let i=0;i<n;i++){
+      motes.push({li, t:Math.random(), sp:0.0022+Math.random()*0.0045,
+        size:1.1+Math.random()*1.9, col:l.color||null,
+        tail:[]});
+    }
+  });
+}
+
+/* ================= 绘制 ================= */
+function draw(){
+  tick++;
+
+  /* 拖尾式清屏：留一点余晖 */
+  ctx.fillStyle='rgba(3,6,13,0.32)';
+  ctx.fillRect(0,0,W,H);
+
+  /* 自动旋转 + 惯性 */
+  rotY += velY + (velX*0);
+  rotX += velX;
+  rotX = Math.max(-1.1, Math.min(1.1, rotX));
+  if(!drag){ velY += (0.0032 - velY)*0.02; velX *= 0.93; }
+
+  drawStarfield();
+  drawSphere();
+
+  /* 计算所有节点投影 */
+  const view = nodes.map(nd=>{
+    const q=rot(nd);
+    const p=proj(q);
+    return {nd, q, p};
+  });
+  /* 深度排序：远先画 */
+  view.sort((a,b)=> a.q.z - b.q.z);
+
+  /* 连线（3D 曲线） */
+  view.forEach(v=>{
+    if(v.nd.type!=='core') return;
+  });
+  links.forEach(l=>{
+    const a=byId(l.a), b=byId(l.b); if(!a||!b) return;
+    const qa=rot(a), qb=rot(b);
+    const steps=18;
+    ctx.beginPath();
+    let started=false;
+    for(let i=0;i<=steps;i++){
+      const t=i/steps;
+      const q=bez3(qa,qb,t);
+      const p=proj(q);
+      if(!started){ctx.moveTo(p.x,p.y);started=true;}
+      else ctx.lineTo(p.x,p.y);
+    }
+    const zAvg=(qa.z+qb.z)/2;
+    const depth=Math.max(0.18, Math.min(1, 1 - (zAvg/(RAD*2.2))));
+    ctx.strokeStyle=l.color||(l.type==='in'?'#2f7ad0':l.type==='play'?'#ff4f6d':'#1f6f8f');
+    ctx.globalAlpha=(l.type==='play'?0.42:0.2)*depth;
+    ctx.lineWidth=(l.type==='play'?1.5:0.9);
+    ctx.stroke();
+    ctx.globalAlpha=1;
+  });
+
+  /* 游走粒子 */
+  motes.forEach(m=>{
+    const l=links[m.li]; if(!l) return;
+    const a=byId(l.a), b=byId(l.b); if(!a||!b) return;
+    m.t+=m.sp; if(m.t>1) m.t-=1;
+    const qa=rot(a), qb=rot(b);
+    const q=bez3(qa,qb,m.t);
+    const p=proj(q);
+
+    m.tail.push({x:p.x,y:p.y});
+    if(m.tail.length>7) m.tail.shift();
+
+    const col=m.col||(l.type==='in'?'#4db8ff':l.type==='play'?'#ff6b85':'#31d8b0');
+    const depth=Math.max(0.2, Math.min(1, 1-(q.z/(RAD*2.2))));
+
+    /* 拖尾 */
+    for(let i=0;i<m.tail.length-1;i++){
+      const al=(i/m.tail.length)*0.5*depth;
+      ctx.strokeStyle=col; ctx.globalAlpha=al;
+      ctx.lineWidth=m.size*0.9*(i/m.tail.length);
+      ctx.beginPath(); ctx.moveTo(m.tail[i].x,m.tail[i].y);
+      ctx.lineTo(m.tail[i+1].x,m.tail[i+1].y); ctx.stroke();
+    }
+    ctx.globalAlpha=1;
+
+    /* 发光头 */
+    const rr=m.size*3.2*Math.max(0.5,Math.min(1.6,p.s));
+    const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,rr);
+    g.addColorStop(0,col); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.globalAlpha=0.85*depth;
+    ctx.beginPath(); ctx.arc(p.x,p.y,rr,0,7); ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.fillStyle=col; ctx.globalAlpha=depth;
+    ctx.beginPath(); ctx.arc(p.x,p.y,m.size*Math.max(0.6,p.s),0,7); ctx.fill();
+    ctx.globalAlpha=1;
+  });
+
+  /* 节点（按深度） */
+  view.forEach(v=>{
+    const {nd,q,p}=v;
+    const depth=Math.max(0.25, Math.min(1.35, p.s*1.0));
+    const isH=hovered===nd.id;
+
+    if(nd.type==='core'){
+      /* 3D 球体：自转经纬线 + 立体高光 */
+      const R=nd.r*(0.9+p.s*0.55);
+      /* 外层辉光 */
+      for(let k=3;k>=1;k--){
+        const gr=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,R*(1.5+k*0.6));
+        gr.addColorStop(0,'rgba(0,229,192,.13)');
+        gr.addColorStop(1,'rgba(0,229,192,0)');
+        ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(p.x,p.y,R*(1.5+k*0.6),0,7); ctx.fill();
+      }
+      /* 球体本体 */
+      const body=ctx.createRadialGradient(p.x-R*0.32,p.y-R*0.35,R*0.1,p.x,p.y,R);
+      body.addColorStop(0,'#a8fff4');
+      body.addColorStop(0.45,'#22d6b6');
+      body.addColorStop(0.82,'#038f7c');
+      body.addColorStop(1,'#014b45');
+      ctx.fillStyle=body; ctx.beginPath(); ctx.arc(p.x,p.y,R,0,7); ctx.fill();
+
+      /* 经纬线（随 rotY 转动，制造 3D 自��感） */
+      ctx.save();
+      ctx.beginPath(); ctx.arc(p.x,p.y,R*0.985,0,7); ctx.clip();
+      ctx.strokeStyle='rgba(180,255,245,.30)'; ctx.lineWidth=0.9;
+      for(let li=-3;li<=3;li++){
+        const lat=li*Math.PI/8;
+        const ry=Math.abs(Math.cos(lat))*R;
+        const yy=p.y+Math.sin(lat)*R;
+        ctx.beginPath();
+        ctx.ellipse(p.x,yy,R*Math.cos(lat+rotX*0.35),ry*0.28,0,0,7);
+        ctx.stroke();
+      }
+      const lonShift=rotY% (Math.PI);
+      for(let k=0;k<6;k++){
+        const ang=k*Math.PI/6 + lonShift;
+        const w=Math.abs(Math.cos(ang))*R;
+        ctx.beginPath();
+        ctx.ellipse(p.x,p.y,w*0.98,R,0,0,7);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      /* 高光 */
+      const hl=ctx.createRadialGradient(p.x-R*0.34,p.y-R*0.4,0,p.x-R*0.34,p.y-R*0.4,R*0.7);
+      hl.addColorStop(0,'rgba(255,255,255,.55)');
+      hl.addColorStop(1,'rgba(255,255,255,0)');
+      ctx.fillStyle=hl; ctx.beginPath(); ctx.arc(p.x,p.y,R,0,7); ctx.fill();
+
+      /* 描边 */
+      ctx.beginPath(); ctx.arc(p.x,p.y,R,0,7);
+      ctx.strokeStyle='rgba(140,255,240,.75)'; ctx.lineWidth=1.2; ctx.stroke();
+
+      /* 文字 */
+      ctx.fillStyle='rgba(235,255,252,.95)';
+      ctx.font='600 '+(11*depth).toFixed(1)+'px -apple-system,sans-serif';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('',p.x,p.y);
+
+      /* 分支标签（随球旋转的三维环） */
+      ctx.save();
+      ctx.font='8px monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      const ringR=R*1.9;
+      BRANCHES.forEach((b,i)=>{
+        const ang=(i/BRANCHES.length)*Math.PI*2 + rotY*0.8;
+        const qx=Math.cos(ang)*ringR, qz=Math.sin(ang)*ringR;
+        const qq=rot({x:qx,y:0,z:qz});
+        const pp=proj(qq);
+        const d2=Math.max(0.15,Math.min(1,1-(qq.z/(RAD*1.6))));
+        ctx.fillStyle='rgba(90,200,190,'+(0.55*d2).toFixed(2)+')';
+        ctx.fillText(b,pp.x,pp.y);
+      });
+      ctx.restore();
+      return;
+    }
+
+    if(nd.type==='shell'){
+      const r=nd.r*(0.6+p.s*0.55);
+      const im=IMGS[nd.shellIndex];
+      const ok=im&&im.complete&&im.naturalWidth>0;
+
+      if(isH){
+        const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,r*2.4);
+        g.addColorStop(0,'rgba(90,190,255,.4)'); g.addColorStop(1,'rgba(90,190,255,0)');
+        ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,r*2.4,0,7); ctx.fill();
+      }
+      ctx.globalAlpha=Math.min(1,depth+0.15);
+      ctx.beginPath(); ctx.arc(p.x,p.y,r,0,7);
+      ctx.fillStyle='rgba(10,24,42,.92)'; ctx.fill();
+      if(ok){
+        ctx.save();
+        ctx.beginPath(); ctx.arc(p.x,p.y,r-0.5,0,7); ctx.clip();
+        ctx.drawImage(im,p.x-r,p.y-r,r*2,r*2);
+        ctx.restore();
+      }else{
+        ctx.beginPath(); ctx.arc(p.x,p.y,r*0.52,0,7);
+        ctx.fillStyle='rgba(62,166,255,.9)'; ctx.fill();
+      }
+      ctx.beginPath(); ctx.arc(p.x,p.y,r,0,7);
+      ctx.strokeStyle=isH?'rgba(160,220,255,.95)':'rgba(105,170,235,.5)';
+      ctx.lineWidth=isH?1.8:1; ctx.stroke();
+      ctx.globalAlpha=1;
+      return;
+    }
+
+    if(nd.type==='group'){
+      const r=nd.r*(0.6+p.s*0.55)* (1+Math.sin(tick*0.05+p.x*0.02)*0.04);
+      ctx.globalAlpha=Math.min(1,depth+0.1);
+      const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,r*2.6);
+      g.addColorStop(0,hexA(nd.color,.30));
+      g.addColorStop(1,hexA(nd.color,0));
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,r*2.6,0,7); ctx.fill();
+
+      ctx.beginPath(); ctx.arc(p.x,p.y,r,0,7);
+      ctx.fillStyle=hexA(nd.color,.92); ctx.fill();
+      ctx.strokeStyle=hexA(nd.color,1); ctx.lineWidth=1; ctx.stroke();
+
+      /* 卫星点（三维球壳上，随球转） */
+      const sat=Math.min(nd.cnt,9);
+      for(let i=0;i<sat;i++){
+        const a1=tick*0.012+i*(Math.PI*2/sat);
+        const a2=Math.sin(tick*0.007+i)*0.9;
+        const rr=r+6+(i%3)*2.5;
+        const qx=nd.x+Math.cos(a1)*Math.cos(a2)*rr;
+        const qy=nd.y+Math.sin(a2)*rr;
+        const qz=nd.z+Math.sin(a1)*Math.cos(a2)*rr;
+        const pp=proj(rot({x:qx,y:qy,z:qz}));
+        ctx.beginPath(); ctx.arc(pp.x,pp.y,1.4,0,7);
+        ctx.fillStyle=hexA(nd.color,.45); ctx.fill();
+      }
+
+      /* 名称 + 站数：越靠近视角越清楚，远处淡出（防止密集区糊成一团） */
+      const near = Math.max(0, Math.min(1, (p.s-1.00)*3.4));
+      if(near > 0.03){
+        const fs=9.5*Math.max(0.8,Math.min(1.18,p.s));
+        ctx.fillStyle='rgba(215,232,250,'+(near*0.95).toFixed(2)+')';
+        ctx.font=fs.toFixed(1)+'px -apple-system,sans-serif';
+        ctx.textAlign='center'; ctx.textBaseline='top';
+        ctx.fillText(nd.name,p.x,p.y+r+4);
+        ctx.fillStyle=hexA(nd.color,(near*0.75).toFixed(2));
+        ctx.font=(fs*0.82).toFixed(1)+'px -apple-system,sans-serif';
+        ctx.fillText(nd.cnt+'站',p.x,p.y+r+4+fs);
+      }
+      ctx.globalAlpha=1;
+      return;
+    }
+
+    if(nd.type==='out'){
+      const r=nd.r*(0.7+p.s*0.5);
+      ctx.globalAlpha=Math.min(1,depth+0.1);
+      const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,r*3);
+      g.addColorStop(0,'rgba(255,79,109,.32)'); g.addColorStop(1,'rgba(255,79,109,0)');
+      ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,r*3,0,7); ctx.fill();
+      ctx.beginPath(); ctx.arc(p.x,p.y,r,0,7);
+      const bd=ctx.createRadialGradient(p.x-r*0.3,p.y-r*0.3,1,p.x,p.y,r);
+      bd.addColorStop(0,'#ff9db1'); bd.addColorStop(1,'#c11236');
+      ctx.fillStyle=bd; ctx.fill();
+      ctx.strokeStyle='rgba(255,160,180,.85)'; ctx.lineWidth=1.2; ctx.stroke();
+      ctx.fillStyle='rgba(255,215,225,'+Math.min(1,depth+0.2).toFixed(2)+')';
+      ctx.font=(9*Math.max(0.8,Math.min(1.2,p.s))).toFixed(1)+'px -apple-system,sans-serif';
+      ctx.textAlign='center'; ctx.textBaseline='top';
+      ctx.fillText('播放器',p.x,p.y+r+5);
+      ctx.globalAlpha=1;
+    }
+  });
+
+  requestAnimationFrame(draw);
+}
+
+/* 背景星点（视差） */
+const STARS=Array.from({length:90},()=>({
+  x:Math.random(), y:Math.random(), z:0.3+Math.random()*0.7, r:0.4+Math.random()*1.1
+}));
+function drawStarfield(){
+  STARS.forEach(s=>{
+    const px=(s.x*W + Math.sin(tick*0.002+s.z*6)*12*s.z);
+    const py=(s.y*H + Math.cos(tick*0.0016+s.x*9)*10*s.z);
+    ctx.globalAlpha=0.10+0.22*Math.abs(Math.sin(tick*0.01+s.x*10));
+    ctx.fillStyle='#5ea8e8';
+    ctx.beginPath(); ctx.arc(px,py,s.r*s.z,0,7); ctx.fill();
+  });
+  ctx.globalAlpha=1;
+}
+
+/* 中心球背景光晕（在节点之下） */
+function drawSphere(){
+  const g=ctx.createRadialGradient(CX,CY,0,CX,CY,RAD*1.5);
+  g.addColorStop(0,'rgba(0,229,192,.10)');
+  g.addColorStop(0.5,'rgba(0,180,160,.04)');
+  g.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(CX,CY,RAD*1.5,0,7); ctx.fill();
+}
+
+function hexA(h,a){const n=parseInt(h.slice(1),16);return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;}
+
+/* ================= 交互 ================= */
+const tip=document.getElementById('tip');
+function pick(mx,my){
+  let best=null,bd=1e9;
+  nodes.forEach(nd=>{
+    const q=rot(nd), p=proj(q);
+    const r=(nd.type==='core'?nd.r*1.6:nd.r*(0.7+p.s*0.6))+14;
+    const d=Math.hypot(p.x-mx,p.y-my);
+    if(d<r && d<bd){bd=d;best={nd,p};}
+  });
+  return best;
+}
+function showTip(hit,mx,my){
+  if(!hit){tip.style.opacity=0;hovered=null;return;}
+  hovered=hit.nd.id;
+  tip.style.opacity=1;
+  const tw=Math.min(230,W-16);
+  tip.style.maxWidth=tw+'px';
+  tip.style.left=Math.max(8,Math.min(mx+14,W-tw-8))+'px';
+  tip.style.top=Math.max(8,Math.min(my+14,H-110))+'px';
+  tip.innerHTML=`<b>${hit.nd.name}</b><br>${hit.nd.d||''}`;
+}
+
+cv.addEventListener('pointerdown',e=>{drag=true;lastX=e.clientX;lastY=e.clientY;});
+cv.addEventListener('pointermove',e=>{
+  if(drag){
+    const dx=e.clientX-lastX, dy=e.clientY-lastY;
+    velY = dx*0.00035; velX = -dy*0.00028;
+    rotY += dx*0.0055; rotX += -dy*0.0042;
+    rotX=Math.max(-1.1,Math.min(1.1,rotX));
+    lastX=e.clientX; lastY=e.clientY;
+  } else {
+    const hit=pick(e.clientX,e.clientY);
+    showTip(hit,e.clientX,e.clientY);
+  }
+});
+['pointerup','pointercancel','pointerleave'].forEach(ev=>
+  cv.addEventListener(ev,()=>{drag=false;}));
+cv.addEventListener('click',e=>{
+  const hit=pick(e.clientX,e.clientY);
+  showTip(hit,e.clientX,e.clientY);
+});
+
+addEventListener('resize',resize);
+if(window.visualViewport) window.visualViewport.addEventListener('resize',resize);
+resize(); draw();
+</script>
+</body>
+</html>

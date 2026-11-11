@@ -5,7 +5,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>ImgIng 图映</title>
+<title>九月-img图片转换</title>
 <style>
   :root{
     --bg:#f5f7f8; --card:#fff; --primary:#0fb9a3; --primary-d:#0a9a87;
@@ -85,6 +85,37 @@
   .drop em{display:block;margin-top:10px;font-style:normal;color:#a8b3bc;font-size:11.5px;
     letter-spacing:.6px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
 
+  /* ★ 已选态：选完图后这个框整个变样，肉眼一眼看出选没选、选了啥 */
+  .drop.picked{border-style:solid;border-color:var(--primary);background:#f7fdfc;
+    text-align:left;padding:13px 14px;cursor:default;}
+  .drop.picked:hover{background:#f7fdfc;transform:none}
+  .drop.picked .drop-idle{display:none}
+  .picked-head{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:800;
+    color:var(--primary-d);}
+  .drop .picked-ok{width:17px;height:17px;border-radius:50%;background:var(--primary);
+    color:#fff !important;font-size:11px;line-height:17px;text-align:center;flex:none;
+    font-weight:900;}
+  .drop .picked-cnt{flex:1;color:var(--primary-d);font-size:12.5px;}
+  .picked-clear{border:1px solid var(--border);background:#fff;border-radius:8px;
+    padding:5px 10px;font-size:11.5px;font-weight:700;color:#5a6570;cursor:pointer;
+    flex:none;-webkit-tap-highlight-color:transparent;}
+  .picked-clear:active{background:#f1f5f7}
+  .picked-thumbs{display:flex;gap:8px;overflow-x:auto;margin-top:11px;padding-bottom:3px;
+    -webkit-overflow-scrolling:touch;}
+  .picked-thumbs figure{flex:none;width:58px;margin:0;position:relative;text-align:center;}
+  .picked-thumbs img{width:58px;height:58px;border-radius:9px;object-fit:cover;
+    background:#eef2f5;border:2px solid var(--primary);display:block;}
+  .picked-x{position:absolute;top:-5px;right:-5px;width:19px;height:19px;border-radius:50%;
+    border:none;background:#ef5b5b;color:#fff;font-size:12px;line-height:1;font-weight:900;
+    cursor:pointer;padding:0;box-shadow:0 1px 4px rgba(0,0,0,.2);}
+  .picked-names{margin-top:10px;font-size:11.5px;color:#5a6570;line-height:1.75;}
+  .picked-line{display:flex;gap:6px;align-items:baseline;}
+  .drop .picked-idx{color:#a8b3bc;font-size:11px;flex:none;min-width:15px;}
+  .picked-fn{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    font-weight:600;color:#3d464f;}
+  .drop .picked-sz{color:#a8b3bc;font-size:11px;flex:none;}
+  .drop .picked-more{color:#8a97a2;font-size:11px;margin-top:2px;}
+
   .sec-title{display:flex;align-items:center;gap:8px;margin:22px 0 10px;font-weight:800;font-size:13.5px}
   .sec-title .num{width:20px;height:20px;border-radius:6px;background:var(--primary-l);
     color:var(--primary-d);display:grid;place-items:center;font-size:11px;font-weight:900;flex:none;}
@@ -148,6 +179,11 @@
   .item{padding:11px;border-radius:12px;background:#fff;border:1px solid var(--border);
     margin-bottom:8px;transition:.2s;}
   .item.done{border-color:#c3ecdf;background:#fafffe}
+  /* ★ 参数改过之后：结果还在，但已作废，提示重转 */
+  .item.stale{border-color:#ffdda8;background:#fffdf7}
+  .item.stale .thumb{opacity:.55}
+  .stale-tag{color:#c98a13;font-weight:800;background:#fff3d9;
+    padding:1px 7px;border-radius:20px;font-size:10.5px;}
   .item.err{border-color:#ffd4d4;background:#fffafa}
   .item-row{display:flex;align-items:center;gap:12px}
   .thumb{width:52px;height:52px;border-radius:9px;object-fit:cover;flex:none;background:#eef2f5}
@@ -169,9 +205,12 @@
     box-shadow:0 4px 14px rgba(15,185,163,.3);cursor:pointer;
     -webkit-tap-highlight-color:rgba(0,0,0,.1);letter-spacing:.5px;}
   .item.done .dl{display:block}
+  /* stale 的旧结果也还能下载（万一新参数转失败还能救回来） */
+  .item.stale .dl{display:block;opacity:.75;filter:grayscale(.35)}
   .dl:active{transform:scale(.985);opacity:.92}
   .dl-hint{display:none;margin-top:7px;font-size:11.5px;color:#8a97a2;text-align:center;line-height:1.6}
   .item.done .dl-hint{display:block}
+  .item.stale .dl-hint{display:block}
 
   @keyframes pulseRing{
     0%{box-shadow:0 0 0 0 rgba(15,185,163,.55)}
@@ -235,7 +274,7 @@
     <div class="logo fallback" id="logo">
       <img id="logoImg" alt="logo" hidden>
     </div>
-    <div class="brand">ImgIng 图映<small>单文件</small></div>
+    <div class="brand">九月-img 图片转换<small>图片文件</small></div>
     <div class="topbar-right">
       <button class="icon-btn" id="btnTheme" title="切换主题">◐</button>
     </div>
@@ -245,7 +284,7 @@
 <div class="wrap">
 
   <div class="hero">
-    <div class="kicker">ImgIng</div>
+    <div class="kicker">img图片压缩转换</div>
     <h1>手机图片压缩</h1>
     <p>单张或多张批量处理，全部<span class="accent">本机完成</span>，零上传。</p>
   </div>
@@ -274,14 +313,25 @@
       </div>
 
       <div class="drop" id="drop">
-        <div class="drop-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>
-          </svg>
+        <div class="drop-idle">
+          <div class="drop-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>
+            </svg>
+          </div>
+          <b>点击选择图片</b>
+          <span>也可以拖进来，或直接 Ctrl+V 粘贴</span>
+          <em>单张最大 40MB · 支持 WebP / JPG / PNG / BMP / GIF</em>
         </div>
-        <b>点击选择图片</b>
-        <span>也可以拖进来，或直接 Ctrl+V 粘贴</span>
-        <em>单张最大 40MB · 支持 WebP / JPG / PNG / BMP / GIF</em>
+        <div class="picked-panel" id="pickedPanel" hidden>
+          <div class="picked-head">
+            <span class="picked-ok">&#10003;</span>
+            <span class="picked-cnt" id="pickedCnt"></span>
+            <button type="button" class="picked-clear" id="pickedClear">重选</button>
+          </div>
+          <div class="picked-thumbs" id="pickedThumbs"></div>
+          <div class="picked-names" id="pickedNames"></div>
+        </div>
       </div>
       <input type="file" id="fileInput" accept="image/*" multiple hidden>
 
@@ -333,7 +383,7 @@
   </div>
 
   <div class="foot">
-    ImgIng 图映 <span class="dot"></span> 单文件 · 零依赖 · 零上传
+    九月 图片转换 <span class="dot"></span> 单文件 · 零依赖 · 零上传
   </div>
 </div>
 
@@ -556,22 +606,27 @@ async function makeZip(files){
 /* =========================================================
  *  核心转换
  * ========================================================= */
-async function convert(item){
+/* ★ 参数用快照传进来，避免转到一半改滑块导致产物和 sig 对不上 */
+async function convert(item, opt){
+  var fmt   = opt ? opt.format  : S.format;
+  var qual  = opt ? opt.quality : S.quality;
+  var scale = opt ? opt.scale   : S.scale;
+
   var bmp;
   try { bmp = await createImageBitmap(item.file); }
   catch (e) { throw new Error('图片解码失败，格式可能不受支持'); }
 
   var w = bmp.width, h = bmp.height;
-  if (S.scale !== 100){
-    w = Math.max(1, Math.round(w * S.scale / 100));
-    h = Math.max(1, Math.round(h * S.scale / 100));
+  if (scale !== 100){
+    w = Math.max(1, Math.round(w * scale / 100));
+    h = Math.max(1, Math.round(h * scale / 100));
   }
 
   var canvas = document.createElement('canvas');
   canvas.width = w; canvas.height = h;
-  var ctx = canvas.getContext('2d', { alpha: S.format !== 'jpg' });
+  var ctx = canvas.getContext('2d', { alpha: fmt !== 'jpg' });
 
-  if (S.format === 'jpg' || S.format === 'bmp'){
+  if (fmt === 'jpg' || fmt === 'bmp'){
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0,0,w,h);
   }
@@ -580,13 +635,13 @@ async function convert(item){
   ctx.drawImage(bmp,0,0,w,h);
   if (bmp.close) bmp.close();
 
-  if (S.format === 'bmp') return encodeBMP(ctx.getImageData(0,0,w,h));
+  if (fmt === 'bmp') return encodeBMP(ctx.getImageData(0,0,w,h));
 
-  var q = S.quality / 100;
+  var q = qual / 100;
   return await new Promise(function(resolve,reject){
     canvas.toBlob(function(b){
       if (b) resolve(b); else reject(new Error('编码返回空'));
-    }, MIME_OUT[S.format], S.format === 'png' ? undefined : q);
+    }, MIME_OUT[fmt], fmt === 'png' ? undefined : q);
   });
 }
 
@@ -594,12 +649,120 @@ async function convert(item){
  *  队列渲染
  *  ★ 保存链接用 createElement + 属性赋值，跟参考页一个套路
  * ========================================================= */
+/* =========================================================
+ *  ★ 已选反馈：把选中的图片回写进 #drop 框
+ *  选之前是虚线空框，选之后整个框变绿、显示缩略图 + 文件名
+ * ========================================================= */
+var PICKED_SHOW = 10;   /* 缩略图最多展示几张，多的折叠成 +N */
+var PICKED_NAME = 10;  /* 文件名最多列几条 */
+
+function escHtml(s){
+  return String(s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','\u0022':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+function renderPicked(){
+  var box = $('#drop');
+  if (!box) return;
+  var panel = $('#pickedPanel');
+  var n = S.items.length;
+
+  if (!n){
+    box.classList.remove('picked');
+    if (panel) panel.hidden = true;
+    /* 顺手把残留文字清掉，免得下次显示时闪旧数据 */
+    var c0 = $('#pickedCnt'), t0 = $('#pickedThumbs'), m0 = $('#pickedNames');
+    if (c0) c0.textContent = '';
+    if (t0) t0.innerHTML = '';
+    if (m0) m0.innerHTML = '';
+    return;
+  }
+
+  box.classList.add('picked');
+  if (!panel) return;
+  panel.hidden = false;
+
+  /* 标题行：几张、总共多大 */
+  var total = 0;
+  S.items.forEach(function(it){ total += (it.srcSize || 0); });
+  $('#pickedCnt').textContent = '已选 ' + n + ' 张' +
+    (total ? ' · 共 ' + fmtSize(total) : '') + ' · 点下面按钮转换';
+
+  /* 缩略图条 */
+  var th = $('#pickedThumbs');
+  var show = Math.min(n, PICKED_SHOW);
+  var h = '';
+  for (var i=0; i<show; i++){
+    var it = S.items[i];
+    h += '<figure>' +
+      '<img src="' + it.thumb + '" alt="" title="' + escHtml(it.name) + '">' +
+      '<button type="button" class="picked-x" data-id="' + it.id + '" title="移除这张">&#215;</button>' +
+      '</figure>';
+  }
+  if (n > show){
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="58" height="58">' +
+      '<rect width="58" height="58" rx="9" fill="#e6f7f4"/>' +
+      '<text x="29" y="36" font-size="15" font-weight="700" fill="#0a9a87" ' +
+      'text-anchor="middle" font-family="sans-serif">+' + (n - show) + '</text></svg>';
+    h += '<figure><img src="data:image/svg+xml;base64,' + btoa(svg) +
+      '" alt="" title="还有 ' + (n - show) + ' 张"></figure>';
+  }
+  th.innerHTML = h;
+
+  /* 文件名清单 */
+  var nBox = $('#pickedNames');
+  var showN = Math.min(n, PICKED_NAME);
+  var nh = '';
+  for (var j=0; j<showN; j++){
+    var jt = S.items[j];
+    nh += '<div class="picked-line">' +
+      '<span class="picked-idx">' + (j+1) + '.</span>' +
+      '<span class="picked-fn" title="' + escHtml(jt.name) + '">' + escHtml(jt.name) + '</span>' +
+      '<span class="picked-sz">' + fmtSize(jt.srcSize || 0) + '</span>' +
+      '</div>';
+  }
+  if (n > showN){
+    nh += '<div class="picked-more">… 另 ' + (n - showN) + ' 个（已全部加入下方队列）</div>';
+  }
+  nBox.innerHTML = nh;
+}
+
+/* 已选态里的点击：× 移除单张、重选清空，都别让 #drop 再弹选图框 */
+document.addEventListener('click', function(e){
+  var t = e.target;
+  if (!t || !t.closest) return;
+
+  var x = t.closest('.picked-x');
+  if (x){
+    e.preventDefault();
+    e.stopPropagation();
+    var id = +x.dataset.id;
+    S.items = S.items.filter(function(it){
+      if (it.id === id && it.dlUrl) URL.revokeObjectURL(it.dlUrl);
+      return it.id !== id;
+    });
+    renderQueue();
+    return;
+  }
+
+  if (t.closest('#pickedClear')){
+    e.preventDefault();
+    e.stopPropagation();
+    S.items.forEach(function(it){ if (it.dlUrl) URL.revokeObjectURL(it.dlUrl); });
+    S.items = [];
+    renderQueue();
+  }
+});
+
 function renderQueue(){
   var wrap = $('#queueWrap'), box = $('#queue');
+  renderPicked();
 
   if (!S.items.length){
     wrap.style.display = 'none';
     $('#btnGo').disabled = true;
+    $('#btnGo').textContent = '转换';
     return;
   }
   wrap.style.display = '';
@@ -608,7 +771,9 @@ function renderQueue(){
   S.items.forEach(function(it){
     var el = document.createElement('div');
     var cls = 'item';
-    if (it.status === 'done')  cls += ' done';
+    var csigNow = curSig();
+    var stale = (it.status === 'done' && it.sig !== csigNow);  /* 转过了但参数变过 */
+    if (it.status === 'done')  cls += stale ? ' stale' : ' done';
     if (it.status === 'error') cls += ' err';
     if (it.status === 'busy')  cls += ' busy';
     el.className = cls;
@@ -618,7 +783,11 @@ function renderQueue(){
       ? Math.round((1 - it.outSize / it.srcSize) * 100) : null;
 
     var meta = '<span>' + fmtSize(it.srcSize) + '</span>';
-    if (it.status === 'done'){
+    if (it.status === 'done' && stale){
+      /* 参数改过了，旧结果先留着，但明确告诉你得重转 */
+      meta += '<span>→</span><span style="color:#b0bac2;text-decoration:line-through">' + fmtSize(it.outSize) + '</span>';
+      meta += '<span class="stale-tag">参数已改 · 待重转</span>';
+    } else if (it.status === 'done'){
       meta += '<span>→</span><span style="color:#12b886;font-weight:700">' + fmtSize(it.outSize) + '</span>';
       if (saving > 0) meta += '<span class="saving">-' + saving + '%</span>';
       if (saving < 0) meta += '<span style="color:#e8a33d;font-weight:700">+' + (-saving) + '%</span>';
@@ -645,17 +814,19 @@ function renderQueue(){
     el.appendChild(row);
 
     /* 下半部分：裸 <a>，只有 href 和 download —— 关键 */
-    if (it.status === 'done' && it.dlUrl){
+    if (it.status === 'done' && (it.hrefUrl || it.dlUrl)){
       var a = document.createElement('a');
       a.className = 'dl';
-      a.href = it.dlUrl;
+      a.href = it.hrefUrl || it.dlUrl;
       a.download = it.dlName;
       a.textContent = '💾 保存到本地（' + it.dlName + '）';
       el.appendChild(a);
 
       var h = document.createElement('div');
       h.className = 'dl-hint';
-      h.textContent = '点上面按钮直接下载 · 文件名 ' + it.dlName;
+      h.textContent = it.hrefUrl
+        ? '链接已备好 · 文件名 ' + it.dlName
+        : '⚠ 中转失败，请长按下面大图保存';
       el.appendChild(h);
     }
 
@@ -663,9 +834,26 @@ function renderQueue(){
   });
 
   var done = S.items.filter(function(i){ return i.status === 'done'; }).length;
-  $('#qTitle').textContent = '处理队列 · ' + S.items.length + ' 张' + (done ? ' (完成 ' + done + ')' : '');
+  /* ★ 只有"转完了"且"参数没变过"的才算真完成 */
+  var csig = curSig();
+  var fresh = S.items.filter(function(i){ return i.status === 'done' && i.sig === csig; }).length;
+  var left = S.items.length - fresh;   /* 还没搞定 / 参数过期要重转的 */
+
+  $('#qTitle').textContent = '处理队列 · ' + S.items.length + ' 张'
+    + (fresh ? ' (完成 ' + fresh + ')' : '');
   $('#btnZip').disabled = done === 0;
-  $('#btnGo').disabled = S.running || S.items.length === 0;
+
+  /* ★ 没有待处理的就别让点 */
+  if (!S.running){
+    $('#btnGo').disabled = left === 0;
+    if (left === 0){
+      $('#btnGo').textContent = '已全部转换完成';
+    } else {
+      $('#btnGo').textContent = done > 0 ? '转换剩余 ' + left + ' 张' : '转换';
+    }
+  } else {
+    $('#btnGo').disabled = true;
+  }
 }
 
 /* =========================================================
@@ -706,7 +894,9 @@ async function addFiles(fileList){
     S.items.push({
       id: ++SEQ, file: f, name: f.name, srcSize: f.size, thumb: thumb,
       status: 'idle', outBlob: null, outSize: 0, err: '', progress: 0,
-      dlUrl: null, dlName: ''
+      dlUrl: null, dlName: '',
+      /* ★ 转的时候用的参数指纹。当前参数 != 这个，就说明该重转 */
+      sig: ''
     });
   }
 
@@ -716,12 +906,40 @@ async function addFiles(fileList){
 }
 
 /* =========================================================
+ *  服务器中转：把 Blob POST 上去，换回一个真实 https 链接
+ *  Via/WebView 的 DownloadListener 只认 http(s)，这是唯一可靠通道
+ * ========================================================= */
+var PUBLISH_OK = true;
+async function publish(blob, name, ext){
+  if (!PUBLISH_OK) throw new Error('中转已禁用');
+  var fd = new FormData();
+  fd.append('f', blob, name);
+  fd.append('name', name);
+  fd.append('ext', ext || 'bin');
+  var r = await fetch('api.php', { method:'POST', body:fd });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  var j = await r.json();
+  if (!j.ok || !j.url) throw new Error(j.error || '返回异常');
+  return new URL(j.url, location.href).href;
+}
+
+/* =========================================================
  *  开始处理
  * ========================================================= */
+/* 当前参数指纹：改了格式/质量/缩放任意一项，指纹就变 */
+function curSig(){
+  return S.format + '|' + S.quality + '|' + S.scale;
+}
+
 async function run(){
   if (S.running) return;
-  var todo = S.items.filter(function(i){ return i.status !== 'done'; });
-  if (!todo.length){ toast('没有待处理的图片'); return; }
+  var sig = curSig();
+  var snap = { format: S.format, quality: S.quality, scale: S.scale };
+  /* ★ 没转过的、或者转完之后参数被改过的，都要重转 */
+  var todo = S.items.filter(function(i){
+    return i.status !== 'done' || i.sig !== sig;
+  });
+  if (!todo.length){ toast('当前参数下都已转换完成'); return; }
 
   S.running = true;
   $('#btnGo').disabled = true;
@@ -735,16 +953,23 @@ async function run(){
       it.status = 'busy'; it.progress = 20; renderQueue();
       try {
         it.progress = 60; renderQueue();
-        var blob = await convert(it);
+        var blob = await convert(it, snap);
         it.outBlob = blob;
         it.outSize = blob.size;
 
         if (it.dlUrl) URL.revokeObjectURL(it.dlUrl);
         it.dlName = baseName(it.name) + '.' + EXT_OUT[S.format];
-        it.dlUrl  = URL.createObjectURL(new Blob([blob], { type: MIME_OUT[S.format] }));
+        it.dlUrl  = URL.createObjectURL(new Blob([blob], { type: 'application/octet-stream' }));
+        try {
+          it.hrefUrl = await publish(blob, it.dlName, EXT_OUT[S.format]);
+        } catch (e2) {
+          console.warn('[publish]', e2);
+          it.hrefUrl = '';
+        }
 
         it.progress = 100;
         it.status = 'done';
+        it.sig = sig;          /* ★ 记住这次用的参数 */
         okN++;
       } catch (e) {
         console.error('[convert]', it.name, e);
@@ -762,9 +987,7 @@ async function run(){
   await Promise.all(pool);
 
   S.running = false;
-  $('#btnGo').textContent = '转换';
-  $('#btnGo').disabled = false;
-  renderQueue();
+  renderQueue();   /* 交给 renderQueue 决定按钮状态，别再无条件启用 */
 
   if (errN === 0){
     toast('完成 ' + okN + ' 张，点绿色按钮保存');
@@ -796,7 +1019,7 @@ function openViewer(it){
   vUrl = URL.createObjectURL(it.outBlob);
   vImg.src = vUrl;
 
-  vDlA.href = it.dlUrl;
+  vDlA.href = it.hrefUrl || it.dlUrl;
   vDlA.download = it.dlName;
   vDlA.textContent = '💾 保存图片（' + EXT_OUT[S.format].toUpperCase() + '）';
 
@@ -848,8 +1071,12 @@ async function downloadZip(){
     });
 
     var blob = await makeZip(files);
-    var zipName = 'imging_' + dones.length + '张_' + Date.now() + '.zip';
-    var zipUrl = URL.createObjectURL(new Blob([blob], { type:'application/zip' }));
+    var zipName = 'img_' + dones.length + '张_' + Date.now() + '.zip';
+    var zipUrl;
+    try {
+      zipUrl = await publish(blob, zipName, 'zip');
+    } catch (e3) { console.warn('[publish zip]', e3); }
+    if (!zipUrl) zipUrl = URL.createObjectURL(new Blob([blob], { type:'application/octet-stream' }));
 
     var old = $('#zipHolder');
     if (old) old.remove();
@@ -886,7 +1113,11 @@ async function downloadZip(){
 /* =========================================================
  *  事件
  * ========================================================= */
-$('#drop').onclick = function(){ $('#fileInput').click(); };
+$('#drop').onclick = function(e){
+  var t = e.target;
+  if (t && t.closest && (t.closest('.picked-x') || t.closest('#pickedClear'))) return;
+  $('#fileInput').click();
+};
 $('#fileInput').onchange = function(e){
   addFiles(e.target.files);
   e.target.value = '';
@@ -952,12 +1183,14 @@ $$('.fmt').forEach(function(f){
     $('#presets').style.opacity = noQ ? 0.35 : 1;
     $$('.preset').forEach(function(p){ p.style.pointerEvents = noQ ? 'none' : ''; });
 
-    /* 换格式：重算名字和链接 */
+    /* 换格式：只有"这结果就是用新格式转的"才更新文件名和链接。
+       否则留着旧链接（旧产物），队列里会标成「参数已改 · 待重转」 */
+    var csig = curSig();
     S.items.forEach(function(it){
-      if (it.status === 'done' && it.outBlob){
+      if (it.status === 'done' && it.outBlob && it.sig === csig){
         if (it.dlUrl) URL.revokeObjectURL(it.dlUrl);
         it.dlName = baseName(it.name) + '.' + EXT_OUT[S.format];
-        it.dlUrl  = URL.createObjectURL(new Blob([it.outBlob], { type: MIME_OUT[S.format] }));
+        it.dlUrl  = URL.createObjectURL(new Blob([it.outBlob], { type: 'application/octet-stream' }));
       }
     });
     renderQueue();
@@ -971,6 +1204,8 @@ function syncQ(){
   qOut.textContent = v;
   S.quality = v;
   $$('.preset').forEach(function(p){ p.classList.toggle('active', +p.dataset.q === v); });
+  /* ★ 参数变了，按钮要立刻反映「得重转」 */
+  renderQueue();
 }
 qEl.oninput = syncQ;
 $$('.preset').forEach(function(p){
@@ -983,6 +1218,8 @@ sEl.oninput = function(){
   sEl.style.setProperty('--pct', ((v-10)/90*100) + '%');
   sOut.textContent = v + '%';
   S.scale = v;
+  /* ★ 同上 */
+  renderQueue();
 };
 
 $('#btnGo').onclick = run;
@@ -1043,7 +1280,7 @@ document.addEventListener('keydown', function(e){
 
 syncQ();
 sEl.style.setProperty('--pct','100%');
-console.log('%c ImgIng 就绪 ','background:#0fb9a3;color:#fff;padding:3px 8px;border-radius:4px;font-weight:700');
+console.log('%c img 就绪 ','background:#0fb9a3;color:#fff;padding:3px 8px;border-radius:4px;font-weight:700');
 
 })();
 </script>

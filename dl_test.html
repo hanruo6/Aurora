@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>下载通路诊断</title>
+<style>
+body{font-family:-apple-system,sans-serif;background:#f5f7f8;margin:0;padding:16px;line-height:1.7;font-size:14px;color:#14181c}
+h2{margin:0 0 6px;font-size:18px}
+.tip{color:#7a8590;font-size:12.5px;margin-bottom:16px}
+.case{background:#fff;border:1px solid #e4e9ed;border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.h{font-weight:800;font-size:14px;margin-bottom:4px}
+.d{font-size:12px;color:#7a8590;margin-bottom:12px}
+.btn{display:block;width:100%;padding:14px;border:none;border-radius:11px;background:#0fb9a3;color:#fff;font-size:14.5px;font-weight:800;text-decoration:none;text-align:center;box-sizing:border-box}
+.btn.b{background:#4a7cf7}
+.btn.c{background:#e8863a}
+.btn.d{background:#8a63d2}
+.btn.e{background:#ef5b5b}
+.btn:active{opacity:.85}
+.log{background:#11161a;color:#63e6be;font-family:monospace;font-size:11px;padding:10px;border-radius:8px;margin-top:12px;white-space:pre-wrap;word-break:break-all;max-height:200px;overflow:auto}
+</style></head><body>
+<h2>下载通路诊断</h2>
+<div class="tip">点每一个按钮。哪个成功了、哪个弹「仅支持 http 或 https」，把结果告诉贾维斯。</div>
+
+<div class="case" id="c1">
+  <div class="h">A · 参考页原样写法</div>
+  <div class="d">&lt;a href=blob download=xx.webp&gt; MIME=application/octet-stream</div>
+</div>
+<div class="case" id="c2">
+  <div class="h">B · MIME 改成 image/webp</div>
+  <div class="d">同样写法，只换 MIME，测是否 MIME 触发查看分支</div>
+</div>
+<div class="case" id="c3">
+  <div class="h">C · 带 type 属性</div>
+  <div class="d">&lt;a type="image/webp" rel="noopener" download&gt;</div>
+</div>
+<div class="case" id="c4">
+  <div class="h">D · JS 动态 click()</div>
+  <div class="d">createElement + a.click() 全自动</div>
+</div>
+<div class="case" id="c5">
+  <div class="h">E · dataURL 而不是 blob</div>
+  <div class="d">data:image/webp;base64 直连</div>
+</div>
+
+<div class="log" id="log">准备就绪…</div>
+
+<script>
+(function(){
+var logEl = document.getElementById('log');
+function log(m){ logEl.textContent += '\n' + m; }
+logEl.textContent = 'UA: ' + navigator.userAgent.slice(0,110);
+
+// 造一张小 WebP
+var c = document.createElement('canvas'); c.width=180; c.height=120;
+var x = c.getContext('2d');
+x.fillStyle='#0fb9a3'; x.fillRect(0,0,180,120);
+x.fillStyle='#fff'; x.font='bold 22px sans-serif'; x.fillText('TEST',52,70);
+
+c.toBlob(function(webpBlob){
+  log('webp blob.size = ' + webpBlob.size);
+  var urlOctet = URL.createObjectURL(new Blob([webpBlob], {type:'application/octet-stream'}));
+  var urlImage = URL.createObjectURL(new Blob([webpBlob], {type:'image/webp'}));
+
+  // A
+  var a1 = document.createElement('a');
+  a1.className='btn'; a1.textContent='A 试试（octet-stream）';
+  a1.href=urlOctet; a1.download='A_octet.webp';
+  a1.onclick=function(){ log('A 点击 → ' + this.href.slice(0,30) + '…'); };
+  document.getElementById('c1').appendChild(a1);
+
+  // B
+  var a2 = document.createElement('a');
+  a2.className='btn b'; a2.textContent='B 试试（image/webp）';
+  a2.href=urlImage; a2.download='B_image.webp';
+  a2.onclick=function(){ log('B 点击 → mime=image/webp'); };
+  document.getElementById('c2').appendChild(a2);
+
+  // C
+  var a3 = document.createElement('a');
+  a3.className='btn c'; a3.textContent='C 试试（带 type/rel）';
+  a3.href=urlImage; a3.download='C_type.webp';
+  a3.setAttribute('type','image/webp'); a3.setAttribute('rel','noopener');
+  a3.onclick=function(){ log('C 点击 → 带 type=image/webp'); };
+  document.getElementById('c3').appendChild(a3);
+
+  // D
+  var b4 = document.createElement('button');
+  b4.className='btn d'; b4.textContent='D 自动触发 click()';
+  b4.onclick=function(){
+    var a = document.createElement('a');
+    a.href=urlOctet; a.download='D_auto.webp';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ a.remove(); }, 1000);
+    log('D 已自动 click()');
+  };
+  document.getElementById('c4').appendChild(b4);
+
+  // E dataURL
+  var fr = new FileReader();
+  fr.onload = function(){
+    var a5 = document.createElement('a');
+    a5.className='btn e'; a5.textContent='E 试试（dataURL）';
+    a5.href = fr.result; a5.download='E_data.webp';
+    a5.onclick=function(){ log('E 点击 → dataURL 长度 ' + this.href.length); };
+    document.getElementById('c5').appendChild(a5);
+    log('dataURL 长度 = ' + fr.result.length);
+  };
+  fr.readAsDataURL(webpBlob);
+
+}, 'image/webp', 0.9);
+})();
+</script>
+</body></html>

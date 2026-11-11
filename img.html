@@ -203,12 +203,19 @@
     background:linear-gradient(135deg,#0fb9a3,#0a9a87);color:#fff !important;
     font-size:14px;font-weight:800;text-align:center;text-decoration:none;
     box-shadow:0 4px 14px rgba(15,185,163,.3);cursor:pointer;
-    -webkit-tap-highlight-color:rgba(0,0,0,.1);letter-spacing:.5px;}
+    -webkit-tap-highlight-color:rgba(0,0,0,.1);letter-spacing:.5px;
+    /* ★ 防长文件名撑破：单行省略 + 不换行 */
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    box-sizing:border-box;max-width:100%;}
   .item.done .dl{display:block}
   /* stale 的旧结果也还能下载（万一新参数转失败还能救回来） */
   .item.stale .dl{display:block;opacity:.75;filter:grayscale(.35)}
   .dl:active{transform:scale(.985);opacity:.92}
-  .dl-hint{display:none;margin-top:7px;font-size:11.5px;color:#8a97a2;text-align:center;line-height:1.6}
+  .dl-hint{display:none;margin-top:7px;font-size:11.5px;color:#8a97a2;text-align:center;line-height:1.6;
+    /* ★ 长哈希必须能断行，否则撑出容器 */
+    word-break:break-all;overflow-wrap:anywhere;padding:0 4px;}
+  .dl-fname{font-family:ui-monospace,monospace;color:#6f7d88;word-break:break-all;}
+  .dl-fb{display:block;margin-top:3px;color:#a0abb5;font-size:10.5px;}
   .item.done .dl-hint{display:block}
   .item.stale .dl-hint{display:block}
 
@@ -232,9 +239,11 @@
   .toast.show{opacity:1;transform:translate(-50%,0)}
   .toast.err{background:var(--danger)}
 
-  .viewer{position:fixed;inset:0;z-index:950;background:rgba(8,12,16,.95);
+  /* ★ 全屏遮罩必须彻底盖住底层：不透明 + 高于 toast 的层级 */
+  .viewer{position:fixed;inset:0;z-index:9999;background:#0a0f14;
     display:flex;align-items:center;justify-content:center;flex-direction:column;
-    padding:16px 16px 22px;opacity:0;pointer-events:none;transition:.2s;overflow:auto;}
+    padding:16px 16px 22px;opacity:0;pointer-events:none;transition:.2s;
+    overflow:auto;-webkit-overflow-scrolling:touch;}
   .viewer.show{opacity:1;pointer-events:auto}
   .viewer img{max-width:100%;max-height:58vh;border-radius:10px;object-fit:contain;
     background:#fff;box-shadow:0 10px 40px rgba(0,0,0,.55);
@@ -243,7 +252,9 @@
     border:none;background:rgba(255,255,255,.16);color:#fff;font-size:20px;cursor:pointer;
     display:grid;place-items:center;line-height:1;z-index:2}
   .v-name{color:#9aa6b1;font-size:11.5px;margin-top:12px;text-align:center;
-    font-family:ui-monospace,monospace}
+    font-family:ui-monospace,monospace;
+    /* ★ 长文件名也要能断行，别横向撑破弹层 */
+    word-break:break-all;overflow-wrap:anywhere;max-width:340px;padding:0 6px;}
   .v-tip{margin-top:10px;color:#e7edf2;font-size:13px;text-align:center;line-height:1.7}
   .v-tip b{color:#4ad9c4;font-size:14.5px}
   .v-tip small{display:block;color:#7d8a95;font-size:11.5px;margin-top:3px}
@@ -814,19 +825,20 @@ function renderQueue(){
     el.appendChild(row);
 
     /* 下半部分：裸 <a>，只有 href 和 download —— 关键 */
-    if (it.status === 'done' && (it.hrefUrl || it.dlUrl)){
+    if (it.status === 'done' && it.dlUrl){
       var a = document.createElement('a');
       a.className = 'dl';
-      a.href = it.hrefUrl || it.dlUrl;
+      a.href = it.dlUrl;
       a.download = it.dlName;
-      a.textContent = '💾 保存到本地（' + it.dlName + '）';
+      /* ★ 按钮里只放短文案，文件名交给下面的提示行，免得长哈希撑破布局 */
+      a.textContent = '💾 保存到本地';
       el.appendChild(a);
 
       var h = document.createElement('div');
       h.className = 'dl-hint';
-      h.textContent = it.hrefUrl
-        ? '链接已备好 · 文件名 ' + it.dlName
-        : '⚠ 中转失败，请长按下面大图保存';
+      h.innerHTML = '已生成 · <span class="dl-fname"></span>' +
+                    '<small class="dl-fb">按钮没反应？点 👁 打开大图，长按图片保存</small>';
+      h.querySelector('.dl-fname').textContent = it.dlName;
       el.appendChild(h);
     }
 
@@ -906,22 +918,10 @@ async function addFiles(fileList){
 }
 
 /* =========================================================
- *  服务器中转：把 Blob POST 上去，换回一个真实 https 链接
- *  Via/WebView 的 DownloadListener 只认 http(s)，这是唯一可靠通道
+ *  保存说明
+ *  ★ 全部本地生成 blob: 链接，不需要任何服务端。
+ *    点按钮 / download 属性直接落盘，失败就长按大图。
  * ========================================================= */
-var PUBLISH_OK = true;
-async function publish(blob, name, ext){
-  if (!PUBLISH_OK) throw new Error('中转已禁用');
-  var fd = new FormData();
-  fd.append('f', blob, name);
-  fd.append('name', name);
-  fd.append('ext', ext || 'bin');
-  var r = await fetch('api.php', { method:'POST', body:fd });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  var j = await r.json();
-  if (!j.ok || !j.url) throw new Error(j.error || '返回异常');
-  return new URL(j.url, location.href).href;
-}
 
 /* =========================================================
  *  开始处理
@@ -959,13 +959,8 @@ async function run(){
 
         if (it.dlUrl) URL.revokeObjectURL(it.dlUrl);
         it.dlName = baseName(it.name) + '.' + EXT_OUT[S.format];
-        it.dlUrl  = URL.createObjectURL(new Blob([blob], { type: 'application/octet-stream' }));
-        try {
-          it.hrefUrl = await publish(blob, it.dlName, EXT_OUT[S.format]);
-        } catch (e2) {
-          console.warn('[publish]', e2);
-          it.hrefUrl = '';
-        }
+        /* ★ 纯本地：直接用 blob 链接，不再中转 */
+        it.dlUrl  = URL.createObjectURL(new Blob([blob], { type: MIME_OUT[S.format] || 'application/octet-stream' }));
 
         it.progress = 100;
         it.status = 'done';
@@ -1011,6 +1006,8 @@ async function run(){
  * ========================================================= */
 var viewer = $('#viewer'), vImg = $('#vImg'), vName = $('#vName'), vDlA = $('#vDlA');
 var vUrl = null, vItem = null;
+var vPushed = false;    /* ★ 弹层是否往历史栈里塞了一条 */
+var vIgnorePop = 0;     /* ★ 主动 history.back() 时，忽略掉随之而来的那次 popstate */
 
 function openViewer(it){
   if (!it || !it.outBlob) return;
@@ -1019,23 +1016,51 @@ function openViewer(it){
   vUrl = URL.createObjectURL(it.outBlob);
   vImg.src = vUrl;
 
-  vDlA.href = it.hrefUrl || it.dlUrl;
+  vDlA.href = it.dlUrl;
   vDlA.download = it.dlName;
   vDlA.textContent = '💾 保存图片（' + EXT_OUT[S.format].toUpperCase() + '）';
 
   vName.textContent = it.dlName + '  ·  ' + fmtSize(it.outSize);
   viewer.classList.add('show');
   document.body.style.overflow = 'hidden';
+
+  /* ★ 关键：塞一条历史记录，返回手势才会"关弹层"而不是"退出页面" */
+  if (!vPushed){
+    try { history.pushState({ viewer: 1 }, ''); vPushed = true; }
+    catch (e) { vPushed = false; }
+  }
 }
-function closeViewer(){
+
+/* fromPop=true 表示这次是系统返回触发的，别再调 history.back() 兜回去 */
+function closeViewer(fromPop){
+  if (!viewer.classList.contains('show') && !vPushed) return;
+
   viewer.classList.remove('show');
   vImg.removeAttribute('src');
   if (vUrl){ URL.revokeObjectURL(vUrl); vUrl = null; }
   vItem = null;
   document.body.style.overflow = '';
+
+  if (vPushed){
+    vPushed = false;
+    if (!fromPop){
+      /* 点 × 关闭：把刚才塞的那条记录吃掉，免得下次返回要多按一下 */
+      vIgnorePop++;
+      try { history.back(); } catch (e) { vIgnorePop = 0; }
+    }
+  }
 }
-$('#vClose').onclick = closeViewer;
-viewer.onclick = function(e){ if (e.target === viewer) closeViewer(); };
+
+/* ★ 系统返回手势 / 返回键 → 关弹层 */
+window.addEventListener('popstate', function(){
+  if (vIgnorePop > 0){ vIgnorePop--; return; }   /* 我们自己 back() 引发的，跳过 */
+  if (viewer.classList.contains('show') || vPushed){
+    closeViewer(true);
+  }
+});
+
+$('#vClose').onclick = function(){ closeViewer(false); };
+viewer.onclick = function(e){ if (e.target === viewer) closeViewer(false); };
 
 $('#vShare').onclick = function(){
   if (!vItem) return;
@@ -1072,11 +1097,8 @@ async function downloadZip(){
 
     var blob = await makeZip(files);
     var zipName = 'img_' + dones.length + '张_' + Date.now() + '.zip';
-    var zipUrl;
-    try {
-      zipUrl = await publish(blob, zipName, 'zip');
-    } catch (e3) { console.warn('[publish zip]', e3); }
-    if (!zipUrl) zipUrl = URL.createObjectURL(new Blob([blob], { type:'application/octet-stream' }));
+    /* ★ 纯本地：不再中转 */
+    var zipUrl = URL.createObjectURL(new Blob([blob], { type:'application/zip' }));
 
     var old = $('#zipHolder');
     if (old) old.remove();
